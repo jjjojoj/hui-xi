@@ -5,10 +5,12 @@ import jwt from "jsonwebtoken";
 import { db } from "~/server/db";
 import { baseProcedure } from "~/server/trpc/main";
 import { env } from "~/server/env";
+import { rateLimiter } from "~/server/trpc/rateLimiter";
 
 const phoneRegex = /^1[3-9]\d{9}$/;
 
 export const loginTeacher = baseProcedure
+  .use(rateLimiter({ maxRequests: 5, windowSeconds: 60, keyPrefix: "loginTeacher" }))
   .input(z.object({ 
     phoneNumber: z.string().regex(phoneRegex, "请输入有效的手机号码"),
     password: z.string(),

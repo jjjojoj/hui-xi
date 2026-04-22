@@ -70,7 +70,7 @@ function AuthPage() {
               <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center mr-4">
                 <GraduationCap className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-3xl font-bold text-white">智学分析</h1>
+              <h1 className="text-3xl font-bold text-white">智评</h1>
             </div>
             
             <h2 className="text-5xl font-bold text-white mb-6 leading-tight">
@@ -120,7 +120,7 @@ function AuthPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-white font-bold text-sm mb-1">全球教育工作者信赖</div>
-                  <div className="text-blue-200 text-sm">加入已在使用智学分析的10,000+教师</div>
+                  <div className="text-blue-200 text-sm">加入已在使用智评的10,000+教师</div>
                 </div>
                 <div className="flex -space-x-2">
                   <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full border-2 border-white"></div>

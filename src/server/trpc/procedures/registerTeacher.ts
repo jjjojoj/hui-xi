@@ -3,10 +3,12 @@ import { TRPCError } from "@trpc/server";
 import bcryptjs from "bcryptjs";
 import { db } from "~/server/db";
 import { baseProcedure } from "~/server/trpc/main";
+import { rateLimiter } from "~/server/trpc/rateLimiter";
 
 const phoneRegex = /^1[3-9]\d{9}$/;
 
 export const registerTeacher = baseProcedure
+  .use(rateLimiter({ maxRequests: 3, windowSeconds: 60, keyPrefix: "registerTeacher" }))
   .input(z.object({ 
     phoneNumber: z.string().regex(phoneRegex, "请输入有效的手机号码"),
     name: z.string().min(1, "请输入姓名"),

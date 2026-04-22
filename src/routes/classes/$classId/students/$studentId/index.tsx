@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
+import { RequireAuth } from "~/components/RequireAuth";
 import { PerformanceChart } from "~/components/PerformanceChart";
 import { KnowledgeAreaChart } from "~/components/KnowledgeAreaChart";
 import { TimeRangeSelector } from "~/components/TimeRangeSelector";
@@ -37,15 +38,9 @@ export const Route = createFileRoute("/classes/$classId/students/$studentId/")({
 function StudentProfile() {
   const navigate = useNavigate();
   const { classId, studentId } = Route.useParams();
-  const { authToken, teacher, isAuthenticated } = useAuthStore();
+  const { authToken, teacher } = useAuthStore();
   const trpc = useTRPC();
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
-
-  useEffect(() => {
-    if (!isAuthenticated || !authToken) {
-      navigate({ to: "/auth" });
-    }
-  }, [isAuthenticated, authToken, navigate]);
 
   const studentQuery = useQuery({
     ...trpc.getStudentProfileData.queryOptions({ 
@@ -64,7 +59,7 @@ function StudentProfile() {
     enabled: !!authToken && !!studentId,
   });
 
-  if (!isAuthenticated || !teacher) {
+  if (!teacher) {
     return null;
   }
 
@@ -72,6 +67,7 @@ function StudentProfile() {
   const statistics = studentQuery.data?.statistics;
 
   return (
+    <RequireAuth>
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
@@ -479,5 +475,6 @@ function StudentProfile() {
         )}
       </div>
     </div>
+    </RequireAuth>
   );
 }

@@ -3,6 +3,7 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
+import { RequireAuth } from "~/components/RequireAuth";
 
 const CreateClassModal = lazy(() => import("~/components/CreateClassModal").then(m => ({ default: m.CreateClassModal })));
 const TeachingMaterialLibrary = lazy(() => import("~/components/TeachingMaterialLibrary").then(m => ({ default: m.TeachingMaterialLibrary })));
@@ -36,22 +37,19 @@ export const Route = createFileRoute("/dashboard/")({
 
 function Dashboard() {
   const navigate = useNavigate();
-  const { authToken, teacher, isAuthenticated, logout } = useAuthStore();
+  const { authToken, teacher, logout } = useAuthStore();
+  const userRole = useAuthStore((s) => s.userRole);
   const [isCreateClassModalOpen, setIsCreateClassModalOpen] = useState(false);
   const [showTeachingMaterials, setShowTeachingMaterials] = useState(false);
   const [showQuestionGenerator, setShowQuestionGenerator] = useState(false);
   const trpc = useTRPC();
 
+  // Redirect parents away from teacher dashboard
   useEffect(() => {
-    if (!isAuthenticated || !authToken) {
-      navigate({ to: "/auth" });
-    } else {
-      const { userRole } = useAuthStore.getState();
-      if (userRole === "parent") {
-        navigate({ to: "/parent-dashboard" });
-      }
+    if (userRole === "parent") {
+      navigate({ to: "/parent-dashboard" });
     }
-  }, [isAuthenticated, authToken, navigate]);
+  }, [userRole, navigate]);
 
   const classesQuery = useQuery({
     ...trpc.getTeacherClasses.queryOptions({ authToken: authToken || "" }),
@@ -68,13 +66,8 @@ function Dashboard() {
     navigate({ to: "/classes/$classId", params: { classId: classId.toString() } });
   };
 
-  if (!isAuthenticated || !teacher) {
-    return null;
-  }
-
-  // Additional check to ensure only teachers access this dashboard
-  const { userRole } = useAuthStore.getState();
-  if (userRole !== "teacher") {
+  // Ensure only teachers access this dashboard
+  if (!teacher) {
     return null;
   }
 
@@ -84,9 +77,10 @@ function Dashboard() {
   const totalExams = classes.reduce((sum, cls) => sum + cls._count.exams, 0);
   
   // Calculate mistake bank progress (placeholder - this would need actual mistake data)
-  const mistakeBankProgress = totalAssignments > 0 ? Math.round((totalAssignments * 0.85)) : 0; // Placeholder calculation
+  const mistakeBankProgress = 0; // 待接入错题库数据
 
   return (
+    <RequireAuth>
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
@@ -99,7 +93,7 @@ function Dashboard() {
               <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center mr-3 shadow-glow">
                 <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold text-gradient-primary">智学分析</h1>
+              <h1 className="text-xl font-bold text-gradient-primary">智评</h1>
             </div>
             
             <div className="flex items-center space-x-4">
@@ -466,5 +460,6 @@ function Dashboard() {
         </div>
       )}
     </div>
+    </RequireAuth>
   );
 }
