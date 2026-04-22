@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
 import { RequireAuth } from "~/components/RequireAuth";
+import { DashboardSkeleton } from "~/components/DashboardSkeleton";
 
 const CreateClassModal = lazy(() => import("~/components/CreateClassModal").then(m => ({ default: m.CreateClassModal })));
 const TeachingMaterialLibrary = lazy(() => import("~/components/TeachingMaterialLibrary").then(m => ({ default: m.TeachingMaterialLibrary })));
@@ -69,6 +70,14 @@ function Dashboard() {
   // Ensure only teachers access this dashboard
   if (!teacher) {
     return null;
+  }
+
+  if (classesQuery.isLoading) {
+    return (
+      <RequireAuth>
+        <DashboardSkeleton />
+      </RequireAuth>
+    );
   }
 
   const classes = classesQuery.data?.classes || [];

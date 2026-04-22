@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '~/stores/authStore';
 import { TeachingMaterialUpload } from './TeachingMaterialUpload';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface TeachingMaterial {
   id: number;
@@ -46,6 +47,7 @@ export function TeachingMaterialLibrary({ onGenerateQuestions, onClose }: Teachi
   const queryClient = useQueryClient();
   const { authToken } = useAuthStore();
   const [showUpload, setShowUpload] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; title: string } | null>(null);
   const [selectedContentType, setSelectedContentType] = useState<string>('');
   const [selectedKnowledgeArea, setSelectedKnowledgeArea] = useState<number | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,9 +101,13 @@ export function TeachingMaterialLibrary({ onGenerateQuestions, onClose }: Teachi
   );
 
   const handleDelete = async (materialId: number, title: string) => {
-    if (window.confirm(`确定要删除教学资料"${title}"吗？此操作不可撤销。`)) {
-      deleteMutation.mutate(materialId);
-    }
+    setDeleteTarget({ id: materialId, title });
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id);
+    setDeleteTarget(null);
   };
 
   const handleUploadSuccess = () => {
@@ -331,6 +337,18 @@ export function TeachingMaterialLibrary({ onGenerateQuestions, onClose }: Teachi
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="删除教学资料"
+        message={`确定要删除教学资料"${deleteTarget?.title}"吗？此操作不可撤销。`}
+        confirmLabel="确认删除"
+        cancelLabel="取消"
+        destructive
+        isLoading={deleteMutation.isPending}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
