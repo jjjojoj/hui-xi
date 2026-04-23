@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState, Fragment, Suspense } from "react";
+import { useState, Fragment, Suspense, lazy } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
@@ -8,8 +8,9 @@ import { AddStudentModal } from "~/components/AddStudentModal";
 import { ReportGenerationModal } from "~/components/ReportGenerationModal";
 import { ArchiveClassModal } from "~/components/ArchiveClassModal";
 import { EnhancedTeacherAssignmentUpload } from "~/components/EnhancedTeacherAssignmentUpload";
-import { TeachingMaterialLibrary } from "~/components/TeachingMaterialLibrary";
-import { TargetedQuestionGenerator } from "~/components/TargetedQuestionGenerator";
+import { ModalWrapper } from "~/components/ModalWrapper";
+const TeachingMaterialLibrary = lazy(() => import("~/components/TeachingMaterialLibrary").then(m => ({ default: m.TeachingMaterialLibrary })));
+const TargetedQuestionGenerator = lazy(() => import("~/components/TargetedQuestionGenerator").then(m => ({ default: m.TargetedQuestionGenerator })));
 import { ClassStatsCards, ClassInfoSidebar } from "~/components/class/ClassOverview";
 import { ClassStudents } from "~/components/class/ClassStudents";
 import { ClassPerformanceChart } from "~/components/ClassPerformanceChart";
@@ -255,7 +256,7 @@ function ClassDetail() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button onClick={() => setShowReportModal(true)} className="btn-secondary text-sm px-3 py-2 group">
                   <BarChart3 className="w-4 h-4 mr-1" />
                   生成报告
@@ -405,24 +406,20 @@ function ClassDetail() {
           }}
         />
 
-        {showTeachingMaterials && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-              <TeachingMaterialLibrary onClose={() => setShowTeachingMaterials(false)} />
-            </div>
-          </div>
-        )}
+        <ModalWrapper isOpen={showTeachingMaterials} onClose={() => setShowTeachingMaterials(false)} maxWidth="max-w-6xl">
+          <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500">加载中...</div>}>
+            <TeachingMaterialLibrary onClose={() => setShowTeachingMaterials(false)} />
+          </Suspense>
+        </ModalWrapper>
 
-        {showQuestionGenerator && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-auto">
-              <TargetedQuestionGenerator
-                classId={parseInt(classId)}
-                onClose={() => setShowQuestionGenerator(false)}
-              />
-            </div>
-          </div>
-        )}
+        <ModalWrapper isOpen={showQuestionGenerator} onClose={() => setShowQuestionGenerator(false)}>
+          <Suspense fallback={<div className="flex items-center justify-center p-8 text-gray-500">加载中...</div>}>
+            <TargetedQuestionGenerator
+              classId={parseInt(classId)}
+              onClose={() => setShowQuestionGenerator(false)}
+            />
+          </Suspense>
+        </ModalWrapper>
 
         {/* Delete Student Confirmation Dialog */}
         <ConfirmDialog

@@ -8,11 +8,8 @@ import {
   BookOpen, 
   Users, 
   TrendingUp, 
-  Heart,
   Sparkles,
   Brain,
-  Target,
-  ChevronRight
 } from "lucide-react";
 
 export const Route = createFileRoute("/auth/")({
@@ -21,7 +18,6 @@ export const Route = createFileRoute("/auth/")({
 
 function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const [userRole, setUserRole] = useState<"teacher" | "parent">("teacher");
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -138,73 +134,34 @@ function AuthPage() {
         {/* Right Side - Auth Forms */}
         <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
           <div className="w-full max-w-md animate-slide-up">
-            {/* Role Selection */}
+            {/* Mobile-only logo */}
+            <div className="lg:hidden flex items-center justify-center mb-8">
+              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mr-3 shadow-glow">
+                <GraduationCap className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-gradient-primary">智评</h1>
+            </div>
+
+            {/* Welcome text */}
             <div className="mb-8">
               <div className="text-center mb-6">
                 <h3 className="text-2xl font-bold text-gray-900 mb-2">欢迎！</h3>
-                <p className="text-gray-600">选择您的身份开始使用</p>
-              </div>
-              
-              <div className="flex rounded-2xl border-2 border-gray-200 p-2 bg-gray-50">
-                <button
-                  onClick={() => setUserRole("teacher")}
-                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    userRole === "teacher"
-                      ? "bg-white text-blue-700 shadow-lg border border-blue-200 scale-105"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <GraduationCap className="w-5 h-5 inline mr-2" />
-                  教师
-                  {userRole === "teacher" && <Sparkles className="w-4 h-4 inline ml-2" />}
-                </button>
-                <button
-                  onClick={() => setUserRole("parent")}
-                  className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all duration-300 ${
-                    userRole === "parent"
-                      ? "bg-white text-pink-700 shadow-lg border border-pink-200 scale-105"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  <Heart className="w-5 h-5 inline mr-2" />
-                  家长
-                  {userRole === "parent" && <Sparkles className="w-4 h-4 inline ml-2" />}
-                </button>
+                <p className="text-gray-600">登录您的教师账户开始使用</p>
               </div>
             </div>
 
             {/* Auth Forms */}
             <div className="animate-scale-in">
-              {userRole === "teacher" ? (
-                isLogin ? (
-                  <LoginForm
-                    onSuccess={handleAuthSuccess}
-                    onSwitchToRegister={() => setIsLogin(false)}
-                  />
-                ) : (
-                  <RegisterForm
-                    onSuccess={() => setIsLogin(true)}
-                    onSwitchToLogin={() => setIsLogin(true)}
-                  />
-                )
+              {isLogin ? (
+                <LoginForm
+                  onSuccess={handleAuthSuccess}
+                  onSwitchToRegister={() => setIsLogin(false)}
+                />
               ) : (
-                <div className="card p-8 text-center">
-                  <div className="w-16 h-16 bg-gradient-accent rounded-2xl flex items-center justify-center mx-auto mb-6">
-                    <Heart className="w-8 h-8 text-white" />
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">家长门户即将推出！</h3>
-                  <p className="text-gray-600 mb-6">
-                    我们正在努力为您打造出色的家长体验。
-                    请稍后回来查看，届时您可以跟踪孩子的进度并参与他们的学习之旅。
-                  </p>
-                  <button
-                    onClick={() => setUserRole("teacher")}
-                    className="btn-secondary group"
-                  >
-                    尝试教师门户
-                    <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-                  </button>
-                </div>
+                <RegisterForm
+                  onSuccess={() => setIsLogin(true)}
+                  onSwitchToLogin={() => setIsLogin(true)}
+                />
               )}
             </div>
           </div>
