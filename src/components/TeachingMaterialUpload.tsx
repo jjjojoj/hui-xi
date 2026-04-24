@@ -59,8 +59,32 @@ interface KnowledgeArea {
   createdAt: Date;
 }
 
+export interface TeachingMaterialFormValue {
+  id?: number;
+  title: string;
+  description?: string | null;
+  contentType: MaterialContentType;
+  fileUrl?: string | null;
+  textContent?: string | null;
+  knowledgeAreaId?: number;
+}
+
+export interface TeachingMaterialSaveResult {
+  id: number;
+  title: string;
+  description?: string | null;
+  contentType: string;
+  fileUrl?: string | null;
+  textContent?: string | null;
+  knowledgeArea?: KnowledgeArea | null;
+  createdAt: Date;
+  updatedAt?: Date;
+}
+
 interface TeachingMaterialUploadProps {
-  onSuccess?: () => void;
+  mode?: "create" | "edit";
+  initialMaterial?: TeachingMaterialFormValue | null;
+  onSuccess?: (material?: TeachingMaterialSaveResult) => void;
   onClose?: () => void;
   variant?: UploadVariant;
 }
@@ -217,6 +241,8 @@ function isSupportedUploadFileType(
 }
 
 export function TeachingMaterialUpload({
+  mode = "create",
+  initialMaterial = null,
   onSuccess,
   onClose,
   variant = "modal",
@@ -265,16 +291,91 @@ export function TeachingMaterialUpload({
   const uploadMutation = useMutation(
     trpc.uploadTeachingMaterial.mutationOptions(),
   );
+  const updateMutation = useMutation(
+    trpc.updateTeachingMaterial.mutationOptions(),
+  );
   const presignedUrlMutation = useMutation(
     trpc.generatePresignedUploadUrl.mutationOptions(),
   );
 
   const isUploading =
-    uploadMutation.isPending || presignedUrlMutation.isPending;
-  const previewKind = getPreviewKind(contentType, uploadedFile, textContent);
+    uploadMutation.isPending ||
+    updateMutation.isPending ||
+    presignedUrlMutation.isPending;
+  const isEditing = mode === "edit";
+  const previewKind = useMemo(() => {
+    if (uploadedFile) {
+      return getPreviewKind(contentType, uploadedFile, textContent);
+    }
+
+    if (contentType === "text" && textContent.trim()) {
+      return "text";
+    }
+
+    if (
+      initialMaterial?.fileUrl &&
+      contentType === "document" &&
+      initialMaterial.fileUrl.toLowerCase().includes(".pdf")
+    ) {
+      return "pdf";
+    }
+
+    if (
+      initialMaterial?.fileUrl &&
+      (contentType === "image" ||
+        contentType === "video" ||
+        contentType === "audio")
+    ) {
+      return contentType;
+    }
+
+    if (initialMaterial?.textContent?.trim()) {
+      return "text";
+    }
+
+    return getPreviewKind(contentType, null, textContent);
+  }, [
+    contentType,
+    initialMaterial?.fileUrl,
+    initialMaterial?.textContent,
+    textContent,
+    uploadedFile,
+  ]);
   const currentMeta =
     contentType === "text" ? null : CONTENT_TYPE_META[contentType];
   const PreviewIcon = getContentTypeIcon(contentType);
+
+  useEffect(() => {
+    if (!initialMaterial) {
+      reset({
+        contentType: "text",
+        title: "",
+        description: "",
+        textContent: "",
+        knowledgeAreaId: undefined,
+      });
+      setUploadedFile(null);
+      return;
+    }
+
+    reset({
+      contentType: initialMaterial.contentType,
+      title: initialMaterial.title,
+      description: initialMaterial.description ?? "",
+      textContent: initialMaterial.textContent ?? "",
+      knowledgeAreaId: initialMaterial.knowledgeAreaId,
+    });
+    setUploadedFile(null);
+  }, [
+    initialMaterial?.contentType,
+    initialMaterial?.description,
+    initialMaterial?.fileUrl,
+    initialMaterial?.id,
+    initialMaterial?.knowledgeAreaId,
+    initialMaterial?.textContent,
+    initialMaterial?.title,
+    reset,
+  ]);
 
   useEffect(() => {
     if (!uploadedFile) {
@@ -323,6 +424,33 @@ export function TeachingMaterialUpload({
     };
   }, [uploadedFile]);
 
+  const existingPreviewUrl = useMemo(() => {
+    if (!initialMaterial?.fileUrl || uploadedFile) return null;
+
+    if (
+      contentType === "image" ||
+      contentType === "video" ||
+      contentType === "audio"
+    ) {
+      return initialMaterial.fileUrl;
+    }
+
+    if (
+      contentType === "document" &&
+      initialMaterial.fileUrl.toLowerCase().includes(".pdf")
+    ) {
+      return initialMaterial.fileUrl;
+    }
+
+    return null;
+  }, [contentType, initialMaterial?.fileUrl, uploadedFile]);
+
+  const activePreviewUrl = filePreviewUrl ?? existingPreviewUrl;
+  const hasPersistedFile =
+    Boolean(initialMaterial?.fileUrl) &&
+    !uploadedFile &&
+    contentType !== "text";
+
   const detailItems = useMemo(
     () => [
       {
@@ -340,14 +468,22 @@ export function TeachingMaterialUpload({
               : "等待输入文本"
             : uploadedFile
               ? "文件已选择"
-              : "等待上传文件",
+              : hasPersistedFile
+                ? "沿用现有文件"
+                : "等待上传文件",
       },
       {
         label: "知识点归类",
         value: selectedKnowledgeArea?.name || "未关联知识点",
       },
     ],
-    [contentType, selectedKnowledgeArea?.name, textContent, uploadedFile],
+    [
+      contentType,
+      hasPersistedFile,
+      selectedKnowledgeArea?.name,
+      textContent,
+      uploadedFile,
+    ],
   );
 
   const handleContentTypeChange = (nextType: MaterialContentType) => {
@@ -413,6 +549,18 @@ export function TeachingMaterialUpload({
   };
 
   const resetUploadState = () => {
+    if (isEditing && initialMaterial) {
+      reset({
+        contentType: initialMaterial.contentType,
+        title: initialMaterial.title,
+        description: initialMaterial.description ?? "",
+        textContent: initialMaterial.textContent ?? "",
+        knowledgeAreaId: initialMaterial.knowledgeAreaId,
+      });
+      setUploadedFile(null);
+      return;
+    }
+
     reset({
       contentType: "text",
       title: "",
@@ -434,18 +582,24 @@ export function TeachingMaterialUpload({
       return;
     }
 
-    if (data.contentType !== "text" && !uploadedFile) {
+    if (
+      data.contentType !== "text" &&
+      !uploadedFile &&
+      !(isEditing && initialMaterial?.fileUrl)
+    ) {
       toast.error("请先选择文件");
       return;
     }
 
     try {
       const fileUrl =
-        uploadedFile && data.contentType !== "text"
-          ? await uploadFileToStorage(uploadedFile)
+        data.contentType !== "text"
+          ? uploadedFile
+            ? await uploadFileToStorage(uploadedFile)
+            : initialMaterial?.fileUrl || undefined
           : undefined;
 
-      await uploadMutation.mutateAsync({
+      const materialInput = {
         authToken,
         title: data.title.trim(),
         description: data.description?.trim() || undefined,
@@ -454,11 +608,18 @@ export function TeachingMaterialUpload({
         textContent:
           data.contentType === "text" ? data.textContent?.trim() : undefined,
         knowledgeAreaId: data.knowledgeAreaId,
-      });
+      };
 
-      toast.success("教学资料已加入资料库");
+      const result = isEditing
+        ? await updateMutation.mutateAsync({
+            ...materialInput,
+            materialId: initialMaterial!.id!,
+          })
+        : await uploadMutation.mutateAsync(materialInput);
+
+      toast.success(isEditing ? "教学资料已更新" : "教学资料已加入资料库");
       resetUploadState();
-      onSuccess?.();
+      onSuccess?.(result.material);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error));
     }
@@ -478,9 +639,13 @@ export function TeachingMaterialUpload({
             <Plus className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-xl font-bold text-slate-950">添加教学资料</h2>
+            <h2 className="text-xl font-bold text-slate-950">
+              {isEditing ? "编辑教学资料" : "添加教学资料"}
+            </h2>
             <p className="mt-1 text-sm leading-6 text-slate-500">
-              上传讲义、讲评、题型素材或直接录入文本内容，保存后会进入资料库并可用于智能出题。
+              {isEditing
+                ? "调整资料标题、知识点归类和文件内容，保存后会立即同步到资料库。"
+                : "上传讲义、讲评、题型素材或直接录入文本内容，保存后会进入资料库并可用于智能出题。"}
             </p>
           </div>
         </div>
@@ -572,6 +737,12 @@ export function TeachingMaterialUpload({
                   </button>
                 ) : null}
               </div>
+
+              {hasPersistedFile ? (
+                <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+                  当前将继续使用已上传文件。若要替换，只需重新选择一个新文件。
+                </div>
+              ) : null}
 
               {contentType === "text" ? (
                 <div>
@@ -691,11 +862,11 @@ export function TeachingMaterialUpload({
                 <h3 className="text-sm font-bold text-slate-900">预览</h3>
               </div>
 
-              {previewKind === "image" && filePreviewUrl ? (
+              {previewKind === "image" && activePreviewUrl ? (
                 <div className="space-y-4">
                   <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                     <img
-                      src={filePreviewUrl}
+                      src={activePreviewUrl}
                       alt={uploadedFile?.name || "教学资料预览"}
                       className="h-72 w-full object-cover"
                     />
@@ -703,30 +874,30 @@ export function TeachingMaterialUpload({
                 </div>
               ) : null}
 
-              {previewKind === "video" && filePreviewUrl ? (
+              {previewKind === "video" && activePreviewUrl ? (
                 <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
                   <video
-                    src={filePreviewUrl}
+                    src={activePreviewUrl}
                     controls
                     className="h-72 w-full object-contain"
                   />
                 </div>
               ) : null}
 
-              {previewKind === "audio" && filePreviewUrl ? (
+              {previewKind === "audio" && activePreviewUrl ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <Music className="h-4 w-4 text-blue-600" />
                     音频预览
                   </div>
-                  <audio src={filePreviewUrl} controls className="w-full" />
+                  <audio src={activePreviewUrl} controls className="w-full" />
                 </div>
               ) : null}
 
-              {previewKind === "pdf" && filePreviewUrl ? (
+              {previewKind === "pdf" && activePreviewUrl ? (
                 <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
                   <iframe
-                    src={filePreviewUrl}
+                    src={activePreviewUrl}
                     title="PDF 预览"
                     className="h-80 w-full"
                   />
@@ -740,8 +911,11 @@ export function TeachingMaterialUpload({
                     文本预览
                   </div>
                   <div className="max-h-80 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                    {(contentType === "text" ? textContent : fileTextPreview) ||
-                      "输入或上传内容后，这里会显示可读预览。"}
+                    {(contentType === "text"
+                      ? textContent
+                      : fileTextPreview ||
+                        initialMaterial?.textContent ||
+                        "") || "输入或上传内容后，这里会显示可读预览。"}
                   </div>
                 </div>
               ) : null}
@@ -853,9 +1027,10 @@ export function TeachingMaterialUpload({
               type="submit"
               disabled={
                 isUploading ||
+                !title?.trim() ||
                 (contentType === "text"
                   ? !textContent.trim()
-                  : !uploadedFile || !title?.trim())
+                  : !uploadedFile && !hasPersistedFile)
               }
               className="inline-flex h-11 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -864,6 +1039,8 @@ export function TeachingMaterialUpload({
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   保存中...
                 </>
+              ) : isEditing ? (
+                "保存修改"
               ) : (
                 "保存到资料库"
               )}
