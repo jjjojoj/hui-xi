@@ -1,7 +1,4 @@
-import {
-  createCallerFactory,
-  createTRPCRouter,
-} from "~/server/trpc/main";
+import { createCallerFactory, createTRPCRouter } from "~/server/trpc/main";
 import { registerTeacher } from "./procedures/registerTeacher";
 import { loginTeacher } from "./procedures/loginTeacher";
 import { loginDemo } from "./procedures/loginDemo";
@@ -29,8 +26,14 @@ import { generateClassReportExcel } from "./procedures/generateClassReportExcel"
 import { getKnowledgeAreas } from "./procedures/getKnowledgeAreas";
 
 // Enhanced upload procedures
-import { batchParentUploadProcedure, batchTeacherUploadProcedure } from "./procedures/uploadBatch";
-import { getUserUploadStatsProcedure, getSystemStatsProcedure } from "./procedures/getUploadStats";
+import {
+  batchParentUploadProcedure,
+  batchTeacherUploadProcedure,
+} from "./procedures/uploadBatch";
+import {
+  getUserUploadStatsProcedure,
+  getSystemStatsProcedure,
+} from "./procedures/getUploadStats";
 
 // Upload procedures
 import { generatePresignedUploadUrl } from "./procedures/generatePresignedUploadUrl";
@@ -38,12 +41,16 @@ import { uploadParentAssignment } from "./procedures/uploadParentAssignment";
 import { uploadTeacherAssignment } from "./procedures/uploadTeacherAssignment";
 import { uploadTeacherExam } from "./procedures/uploadTeacherExam";
 import { analyzeAssignmentProcedure } from "./procedures/analyzeAssignment";
-import { recognizeStudentInfoProcedure, getAvailableModelsProcedure } from "./procedures/recognizeStudentInfo";
+import {
+  recognizeStudentInfoProcedure,
+  getAvailableModelsProcedure,
+} from "./procedures/recognizeStudentInfo";
 
 // Teaching material management procedures
 import { uploadTeachingMaterial } from "./procedures/uploadTeachingMaterial";
 import { getTeachingMaterials } from "./procedures/getTeachingMaterials";
 import { deleteTeachingMaterial } from "./procedures/deleteTeachingMaterial";
+import { updateTeachingMaterial } from "./procedures/updateTeachingMaterial";
 import { generateTargetedQuestionsProcedure } from "./procedures/generateTargetedQuestions";
 import { generateClassQuestionsProcedure } from "./procedures/generateClassQuestions";
 import { getMistakeLibraryProcedure } from "./procedures/getMistakeLibrary";
@@ -55,23 +62,23 @@ import { batchAddStudentsToClass } from "./procedures/batchAddStudentsToClass";
 export const appRouter = createTRPCRouter({
   // Health check
   healthCheck,
-  
+
   // Authentication procedures
   registerTeacher,
   loginTeacher,
   loginDemo,
   loginParent,
   registerParent,
-  
+
   // Class management procedures
   createClass,
   getTeacherClasses,
   refreshInvitationCode,
-  
+
   // Class lifecycle procedures
   concludeClass,
   promoteClass,
-  
+
   // Student management procedures
   addStudentToClass,
   deleteStudentFromClass,
@@ -105,29 +112,30 @@ export const appRouter = createTRPCRouter({
   uploadParentAssignment,
   uploadTeacherAssignment,
   uploadTeacherExam,
-  
+
   // Enhanced batch upload procedures
   batchParentUpload: batchParentUploadProcedure,
   batchTeacherUpload: batchTeacherUploadProcedure,
-  
+
   // Teaching material management procedures
   uploadTeachingMaterial,
   getTeachingMaterials,
   deleteTeachingMaterial,
-  
+  updateTeachingMaterial,
+
   // AI analysis and recognition procedures
   analyzeAssignment: analyzeAssignmentProcedure,
   recognizeStudentInfo: recognizeStudentInfoProcedure,
   analyzeBatchStudents,
   getAvailableModels: getAvailableModelsProcedure,
-  
+
   // AI-powered question generation
   generateTargetedQuestions: generateTargetedQuestionsProcedure,
   generateClassQuestions: generateClassQuestionsProcedure,
 
   // Mistake library
   getMistakeLibrary: getMistakeLibraryProcedure,
-  
+
   // Upload statistics procedures
   getUserUploadStats: getUserUploadStatsProcedure,
   getSystemStats: getSystemStatsProcedure,
