@@ -21,7 +21,7 @@ async function main() {
 
     if (existingTeacher) {
       console.log(
-        `Demo teacher already exists (id=${existingTeacher.id}). Removing old data...`
+        `Demo teacher already exists (id=${existingTeacher.id}). Removing old data...`,
       );
 
       // Delete in dependency order
@@ -36,7 +36,11 @@ async function main() {
         where: {
           OR: [
             { student: { class: { teacherId: existingTeacher.id } } },
-            { analysis: { assignment: { class: { teacherId: existingTeacher.id } } } },
+            {
+              analysis: {
+                assignment: { class: { teacherId: existingTeacher.id } },
+              },
+            },
           ],
         },
       });
@@ -46,7 +50,14 @@ async function main() {
         },
       });
       // Also clean up knowledge areas created by previous seed runs
-      const demoKaNames = ["分数运算", "小数与百分数", "几何图形", "应用题", "方程", "数据统计"];
+      const demoKaNames = [
+        "分数运算",
+        "小数与百分数",
+        "几何图形",
+        "应用题",
+        "方程",
+        "数据统计",
+      ];
       await prisma.knowledgeArea.deleteMany({
         where: { name: { in: demoKaNames } },
       });
@@ -130,11 +141,11 @@ async function main() {
             status: "active",
             teacherId: teacher.id,
           },
-        })
-      )
+        }),
+      ),
     );
     console.log(
-      `[2] Created ${classes.length} classes: ${classes.map((c) => c.name).join(", ")}\n`
+      `[2] Created ${classes.length} classes: ${classes.map((c) => c.name).join(", ")}\n`,
     );
 
     // -------------------------------------------------------
@@ -143,18 +154,22 @@ async function main() {
     // Special attention student indices (0-based within allStudents)
     const specialAttentionIndices = new Set([2, 8, 17, 25]);
 
-    const studentsByClass: { name: string; grade: string; specialAttention: boolean }[][] = [
+    const studentsByClass: {
+      name: string;
+      grade: string;
+      specialAttention: boolean;
+    }[][] = [
       // 三年级一班 (10 students)
       [
         { name: "张明轩", grade: "三年级", specialAttention: false },
         { name: "李思涵", grade: "三年级", specialAttention: false },
-        { name: "王子墨", grade: "三年级", specialAttention: true },  // special
+        { name: "王子墨", grade: "三年级", specialAttention: true }, // special
         { name: "刘雨桐", grade: "三年级", specialAttention: false },
         { name: "陈浩然", grade: "三年级", specialAttention: false },
         { name: "杨梓萱", grade: "三年级", specialAttention: false },
         { name: "赵子涵", grade: "三年级", specialAttention: false },
         { name: "黄诗琪", grade: "三年级", specialAttention: false },
-        { name: "周子轩", grade: "三年级", specialAttention: true },  // special
+        { name: "周子轩", grade: "三年级", specialAttention: true }, // special
         { name: "吴雨欣", grade: "三年级", specialAttention: false },
       ],
       // 四年级二班 (10 students)
@@ -166,7 +181,7 @@ async function main() {
         { name: "胡欣怡", grade: "四年级", specialAttention: false },
         { name: "林梓涵", grade: "四年级", specialAttention: false },
         { name: "何宇轩", grade: "四年级", specialAttention: false },
-        { name: "高思琪", grade: "四年级", specialAttention: true },  // special
+        { name: "高思琪", grade: "四年级", specialAttention: true }, // special
         { name: "罗子铭", grade: "四年级", specialAttention: false },
         { name: "谢雨涵", grade: "四年级", specialAttention: false },
       ],
@@ -181,11 +196,16 @@ async function main() {
         { name: "曾诗涵", grade: "五年级", specialAttention: false },
         { name: "彭浩然", grade: "五年级", specialAttention: false },
         { name: "萧雨欣", grade: "五年级", specialAttention: false },
-        { name: "田子涵", grade: "五年级", specialAttention: true },  // special
+        { name: "田子涵", grade: "五年级", specialAttention: true }, // special
       ],
     ];
 
-    const allStudents: { id: number; name: string; classId: number; specialAttention: boolean }[] = [];
+    const allStudents: {
+      id: number;
+      name: string;
+      classId: number;
+      specialAttention: boolean;
+    }[] = [];
 
     for (let i = 0; i < classes.length; i++) {
       const cls = classes[i];
@@ -200,8 +220,8 @@ async function main() {
               specialAttention: s.specialAttention,
               classId: cls.id,
             },
-          })
-        )
+          }),
+        ),
       );
       created.forEach((s) =>
         allStudents.push({
@@ -209,12 +229,12 @@ async function main() {
           name: s.name,
           classId: cls.id,
           specialAttention: s.specialAttention,
-        })
+        }),
       );
       const specialCount = created.filter((s) => s.specialAttention).length;
       console.log(
         `    ${cls.name}: ${created.length} students` +
-          (specialCount > 0 ? ` (${specialCount} with special attention)` : "")
+          (specialCount > 0 ? ` (${specialCount} with special attention)` : ""),
       );
     }
     console.log(`[3] Created ${allStudents.length} students total\n`);
@@ -222,15 +242,60 @@ async function main() {
     // -------------------------------------------------------
     // 5. Create student groups (2-3 per class)
     // -------------------------------------------------------
-    const groupsData: { name: string; color: string; classIndex: number; description?: string }[] = [
-      { name: "第一组", color: "blue", classIndex: 0, description: "基础提升小组" },
-      { name: "第二组", color: "green", classIndex: 0, description: "拓展提高小组" },
-      { name: "数学兴趣小组", color: "purple", classIndex: 0, description: "数学兴趣探究小组" },
-      { name: "第一组", color: "blue", classIndex: 1, description: "基础提升小组" },
-      { name: "第二组", color: "orange", classIndex: 1, description: "拓展提高小组" },
-      { name: "第一组", color: "blue", classIndex: 2, description: "基础提升小组" },
-      { name: "第二组", color: "green", classIndex: 2, description: "拓展提高小组" },
-      { name: "数学兴趣小组", color: "red", classIndex: 2, description: "数学兴趣探究小组" },
+    const groupsData: {
+      name: string;
+      color: string;
+      classIndex: number;
+      description?: string;
+    }[] = [
+      {
+        name: "第一组",
+        color: "blue",
+        classIndex: 0,
+        description: "基础提升小组",
+      },
+      {
+        name: "第二组",
+        color: "green",
+        classIndex: 0,
+        description: "拓展提高小组",
+      },
+      {
+        name: "数学兴趣小组",
+        color: "purple",
+        classIndex: 0,
+        description: "数学兴趣探究小组",
+      },
+      {
+        name: "第一组",
+        color: "blue",
+        classIndex: 1,
+        description: "基础提升小组",
+      },
+      {
+        name: "第二组",
+        color: "orange",
+        classIndex: 1,
+        description: "拓展提高小组",
+      },
+      {
+        name: "第一组",
+        color: "blue",
+        classIndex: 2,
+        description: "基础提升小组",
+      },
+      {
+        name: "第二组",
+        color: "green",
+        classIndex: 2,
+        description: "拓展提高小组",
+      },
+      {
+        name: "数学兴趣小组",
+        color: "red",
+        classIndex: 2,
+        description: "数学兴趣探究小组",
+      },
     ];
 
     const allGroups: { id: number; classIndex: number }[] = [];
@@ -247,7 +312,7 @@ async function main() {
       allGroups.push({ id: group.id, classIndex: gd.classIndex });
     }
     console.log(
-      `[4] Created ${allGroups.length} student groups across ${classes.length} classes\n`
+      `[4] Created ${allGroups.length} student groups across ${classes.length} classes\n`,
     );
 
     // -------------------------------------------------------
@@ -256,7 +321,9 @@ async function main() {
     // Assign first 3-4 students of each class to the first group, next 3-4 to second
     let groupAssignCount = 0;
     for (let ci = 0; ci < classes.length; ci++) {
-      const classStudents = allStudents.filter((s) => s.classId === classes[ci].id);
+      const classStudents = allStudents.filter(
+        (s) => s.classId === classes[ci].id,
+      );
       const classGroups = allGroups.filter((g) => g.classIndex === ci);
 
       // First group: first 3-4 students
@@ -267,8 +334,8 @@ async function main() {
             prisma.student.update({
               where: { id: s.id },
               data: { groupId: classGroups[0].id },
-            })
-          )
+            }),
+          ),
         );
         groupAssignCount += slice.length;
       }
@@ -281,8 +348,8 @@ async function main() {
             prisma.student.update({
               where: { id: s.id },
               data: { groupId: classGroups[1].id },
-            })
-          )
+            }),
+          ),
         );
         groupAssignCount += slice.length;
       }
@@ -295,8 +362,8 @@ async function main() {
             prisma.student.update({
               where: { id: s.id },
               data: { groupId: classGroups[2].id },
-            })
-          )
+            }),
+          ),
         );
         groupAssignCount += slice.length;
       }
@@ -322,11 +389,11 @@ async function main() {
             name: ka.name,
             description: ka.description,
           },
-        })
-      )
+        }),
+      ),
     );
     console.log(
-      `[6] Created ${knowledgeAreas.length} knowledge areas: ${knowledgeAreas.map((ka) => ka.name).join(", ")}\n`
+      `[6] Created ${knowledgeAreas.length} knowledge areas: ${knowledgeAreas.map((ka) => ka.name).join(", ")}\n`,
     );
 
     // -------------------------------------------------------
@@ -339,12 +406,10 @@ async function main() {
             teacherId: teacher.id,
             knowledgeAreaId: ka.id,
           },
-        })
-      )
+        }),
+      ),
     );
-    console.log(
-      `[7] Linked teacher to ${teacherKAs.length} knowledge areas\n`
-    );
+    console.log(`[7] Linked teacher to ${teacherKAs.length} knowledge areas\n`);
 
     // -------------------------------------------------------
     // 9. Link some students to knowledge areas
@@ -370,36 +435,80 @@ async function main() {
                   Math.floor(Math.random() * proficiencyLevels.length)
                 ],
             },
-          })
-        )
+          }),
+        ),
       );
       studentKACount += selected.length;
     }
-    console.log(
-      `[8] Created ${studentKACount} student-knowledge area links\n`
-    );
+    console.log(`[8] Created ${studentKACount} student-knowledge area links\n`);
 
     // -------------------------------------------------------
     // 10. Create teaching materials
     // -------------------------------------------------------
     const teachingMaterialsData = [
       {
-        title: "分数运算专项练习",
-        description: "适合三至五年级的分数运算练习题集，包含同分母和异分母运算",
+        title: "分数加减法讲评提纲",
+        description: "覆盖通分、同分母与异分母运算的课堂讲评提纲。",
+        contentType: "text",
+        knowledgeAreaIndex: 0,
+        textContent:
+          "一、先确认分母是否一致。二、异分母必须先通分。三、结果要化成最简分数。常见错因：只看分子相加减、通分后漏改分子、结果没有约分。",
+      },
+      {
+        title: "分数应用题错因清单",
+        description: "整理学生在单位“1”、分率和数量关系上的典型错误。",
         contentType: "document",
         knowledgeAreaIndex: 0,
+        textContent:
+          "重点提醒：先找单位“1”，再判断已知量与对应分率。若求部分量，用单位“1”乘分率；若求单位“1”，用部分量除以分率。",
       },
       {
-        title: "几何图形知识点总结",
-        description: "平面图形面积与周长公式汇总，含立体图形体积公式",
+        title: "小数与百分数转换口诀",
+        description: "适合课前热身和随堂抽查的小抄版讲义。",
+        contentType: "text",
+        knowledgeAreaIndex: 1,
+        textContent:
+          "小数化百分数，小数点向右移动两位并加百分号；百分数化小数，去掉百分号后小数点向左移动两位。注意补 0 与末尾 0 的处理。",
+      },
+      {
+        title: "面积与周长辨析表",
+        description: "用表格对比长方形、正方形、平行四边形和三角形的计算方式。",
+        contentType: "document",
+        knowledgeAreaIndex: 2,
+        textContent:
+          "周长关注边长总和，面积关注所占平面大小。平行四边形面积=底×高，三角形面积=底×高÷2。常见错误是把斜边当成高。",
+      },
+      {
+        title: "几何图形课堂板书整理",
+        description: "总结面积、体积与单位换算的课堂板书内容。",
         contentType: "text",
         knowledgeAreaIndex: 2,
+        textContent:
+          "面积单位之间每相邻两级进率是 100，体积单位之间每相邻两级进率是 1000。题目若混用单位，要先统一再计算。",
       },
       {
-        title: "应用题解题技巧",
-        description: "常见应用题题型分类与解题方法指导，适合中高年级",
-        contentType: "document",
+        title: "应用题数量关系模板",
+        description: "把和差倍、工程、行程等题型拆成数量关系模板。",
+        contentType: "text",
         knowledgeAreaIndex: 3,
+        textContent:
+          "先画线段图，再写已知量、未知量和对应关系。对“比……多/少”“比值”“每份量”这类关键词要先转成算式关系。",
+      },
+      {
+        title: "方程移项易错点提醒",
+        description: "适合课后巩固的方程变形提醒卡。",
+        contentType: "text",
+        knowledgeAreaIndex: 4,
+        textContent:
+          "移项时本质是等式两边同时加减同一个数，不是把符号随意改掉。去括号、去分母之后要及时合并同类项并验算。",
+      },
+      {
+        title: "统计图阅读提示卡",
+        description: "帮助学生区分条形图、折线图与平均数问题的阅读顺序。",
+        contentType: "text",
+        knowledgeAreaIndex: 5,
+        textContent:
+          "先读标题和单位，再读横纵轴含义，最后比较数据变化趋势。涉及平均数时要先求总量，再除以份数。",
       },
     ];
 
@@ -410,14 +519,15 @@ async function main() {
             title: m.title,
             description: m.description,
             contentType: m.contentType,
+            textContent: m.textContent,
             teacherId: teacher.id,
             knowledgeAreaId: knowledgeAreas[m.knowledgeAreaIndex].id,
           },
-        })
-      )
+        }),
+      ),
     );
     console.log(
-      `[9] Created ${materials.length} teaching materials: ${materials.map((m) => m.title).join(", ")}\n`
+      `[9] Created ${materials.length} teaching materials: ${materials.map((m) => m.title).join(", ")}\n`,
     );
 
     // -------------------------------------------------------
@@ -432,7 +542,18 @@ async function main() {
       ["综合运算训练", "方程应用题", "圆与扇形计算", "统计图表分析"],
     ];
 
-    const letterGrades = ["A", "B+", "A-", "B", "A", "C+", "B-", "A", "B+", "A-"];
+    const letterGrades = [
+      "A",
+      "B+",
+      "A-",
+      "B",
+      "A",
+      "C+",
+      "B-",
+      "A",
+      "B+",
+      "A-",
+    ];
 
     const feedbackTemplates = [
       "整体完成质量较好，计算过程清晰，建议加强应用题的分析步骤。",
@@ -446,30 +567,47 @@ async function main() {
     ];
 
     const strengthsTemplates = [
-      "计算过程规范", "解题思路清晰", "作业书写工整",
-      "公式运用正确", "审题仔细认真", "验算习惯良好",
-      "图表绘制规范", "步骤完整有序",
+      "计算过程规范",
+      "解题思路清晰",
+      "作业书写工整",
+      "公式运用正确",
+      "审题仔细认真",
+      "验算习惯良好",
+      "图表绘制规范",
+      "步骤完整有序",
     ];
 
     const improvementsTemplates = [
-      "应用题分析能力有待提高", "计算粗心，需要养成检查习惯",
-      "复杂题型解题速度较慢", "建议多做课外拓展练习",
-      "方程检验环节容易遗漏", "几何证明过程不够严谨",
-      "需要加强对概念的理解", "建议多练习综合题型",
+      "应用题分析能力有待提高",
+      "计算粗心，需要养成检查习惯",
+      "复杂题型解题速度较慢",
+      "建议多做课外拓展练习",
+      "方程检验环节容易遗漏",
+      "几何证明过程不够严谨",
+      "需要加强对概念的理解",
+      "建议多练习综合题型",
     ];
 
     const mistakeDescriptions = [
-      "分数异分母相加时忘记通分", "小数乘法中位数对齐错误",
-      "圆的面积公式中半径取值错误", "应用题中单位换算遗漏",
-      "方程移项时符号出错", "计算结果忘记写单位",
-      "长方形周长公式混淆", "统计图坐标轴标注错误",
+      "分数异分母相加时忘记通分",
+      "小数乘法中位数对齐错误",
+      "圆的面积公式中半径取值错误",
+      "应用题中单位换算遗漏",
+      "方程移项时符号出错",
+      "计算结果忘记写单位",
+      "长方形周长公式混淆",
+      "统计图坐标轴标注错误",
     ];
 
     const originalQuestions = [
-      "计算: 2/3 + 1/4 = ?", "计算: 3.5 × 0.8 = ?",
-      "求圆的面积，已知直径 d=6cm", "小明有12个苹果，吃了1/3，还剩多少？",
-      "解方程: 3x + 5 = 20", "把0.75化为百分数",
-      "长方形长8cm宽5cm，求周长", "某班考试成绩如下，请画条形统计图",
+      "计算: 2/3 + 1/4 = ?",
+      "计算: 3.5 × 0.8 = ?",
+      "求圆的面积，已知直径 d=6cm",
+      "小明有12个苹果，吃了1/3，还剩多少？",
+      "解方程: 3x + 5 = 20",
+      "把0.75化为百分数",
+      "长方形长8cm宽5cm，求周长",
+      "某班考试成绩如下，请画条形统计图",
     ];
 
     let assignmentCount = 0;
@@ -506,14 +644,22 @@ async function main() {
 
           // Create analysis for ~85% of assignments
           if (Math.random() > 0.15) {
-            const grade = letterGrades[Math.floor(Math.random() * letterGrades.length)];
-            const shuffledStrengths = [...strengthsTemplates].sort(() => Math.random() - 0.5);
-            const shuffledImprovements = [...improvementsTemplates].sort(() => Math.random() - 0.5);
+            const grade =
+              letterGrades[Math.floor(Math.random() * letterGrades.length)];
+            const shuffledStrengths = [...strengthsTemplates].sort(
+              () => Math.random() - 0.5,
+            );
+            const shuffledImprovements = [...improvementsTemplates].sort(
+              () => Math.random() - 0.5,
+            );
 
             const analysis = await prisma.assignmentAnalysis.create({
               data: {
                 grade,
-                feedback: feedbackTemplates[Math.floor(Math.random() * feedbackTemplates.length)],
+                feedback:
+                  feedbackTemplates[
+                    Math.floor(Math.random() * feedbackTemplates.length)
+                  ],
                 strengths: shuffledStrengths.slice(0, 2),
                 improvements: shuffledImprovements.slice(0, 2),
                 modelUsed: "demo",
@@ -527,7 +673,9 @@ async function main() {
             if (Math.random() > 0.45) {
               const numMistakes = Math.random() > 0.6 ? 2 : 1;
               for (let mi = 0; mi < numMistakes; mi++) {
-                const mistakeIdx = Math.floor(Math.random() * mistakeDescriptions.length);
+                const mistakeIdx = Math.floor(
+                  Math.random() * mistakeDescriptions.length,
+                );
                 const kaIdx = Math.floor(Math.random() * knowledgeAreas.length);
 
                 await prisma.mistake.create({
@@ -548,8 +696,12 @@ async function main() {
         }
       }
     }
-    console.log(`[10] Created ${assignmentCount} assignments across ${classes.length} classes`);
-    console.log(`     ${analysisCount} with AI analysis, ${mistakeCount} mistakes recorded\n`);
+    console.log(
+      `[10] Created ${assignmentCount} assignments across ${classes.length} classes`,
+    );
+    console.log(
+      `     ${analysisCount} with AI analysis, ${mistakeCount} mistakes recorded\n`,
+    );
 
     // -------------------------------------------------------
     // 11. Create exam records with analyses and exam mistakes
@@ -591,7 +743,10 @@ async function main() {
           // Special attention students get lower scores on average
           const baseScore = student.specialAttention ? 62 : 72;
           const range = student.specialAttention ? 25 : 28;
-          const score = Math.min(100, Math.max(45, baseScore + Math.floor(Math.random() * range)));
+          const score = Math.min(
+            100,
+            Math.max(45, baseScore + Math.floor(Math.random() * range)),
+          );
 
           const exam = await prisma.exam.create({
             data: {
@@ -606,13 +761,29 @@ async function main() {
           examCount++;
 
           // All exams have analysis
-          const shuffledStrengths = [...strengthsTemplates].sort(() => Math.random() - 0.5);
-          const shuffledImprovements = [...improvementsTemplates].sort(() => Math.random() - 0.5);
+          const shuffledStrengths = [...strengthsTemplates].sort(
+            () => Math.random() - 0.5,
+          );
+          const shuffledImprovements = [...improvementsTemplates].sort(
+            () => Math.random() - 0.5,
+          );
 
           const examAnalysis = await prisma.examAnalysis.create({
             data: {
-              grade: score >= 90 ? "A" : score >= 80 ? "B+" : score >= 70 ? "B" : score >= 60 ? "C+" : "D",
-              feedback: examFeedbackTemplates[Math.floor(Math.random() * examFeedbackTemplates.length)],
+              grade:
+                score >= 90
+                  ? "A"
+                  : score >= 80
+                    ? "B+"
+                    : score >= 70
+                      ? "B"
+                      : score >= 60
+                        ? "C+"
+                        : "D",
+              feedback:
+                examFeedbackTemplates[
+                  Math.floor(Math.random() * examFeedbackTemplates.length)
+                ],
               strengths: shuffledStrengths.slice(0, 2),
               improvements: shuffledImprovements.slice(0, 2),
               modelUsed: "demo",
@@ -626,7 +797,9 @@ async function main() {
           if (score < 85) {
             const numMistakes = score < 60 ? 3 : score < 75 ? 2 : 1;
             for (let mi = 0; mi < numMistakes; mi++) {
-              const mistakeIdx = Math.floor(Math.random() * mistakeDescriptions.length);
+              const mistakeIdx = Math.floor(
+                Math.random() * mistakeDescriptions.length,
+              );
               const kaIdx = Math.floor(Math.random() * knowledgeAreas.length);
 
               await prisma.examMistake.create({
@@ -646,8 +819,12 @@ async function main() {
         }
       }
     }
-    console.log(`[11] Created ${examCount} exams across ${classes.length} classes`);
-    console.log(`     ${examAnalysisCount} with analysis, ${examMistakeCount} exam mistakes recorded\n`);
+    console.log(
+      `[11] Created ${examCount} exams across ${classes.length} classes`,
+    );
+    console.log(
+      `     ${examAnalysisCount} with analysis, ${examMistakeCount} exam mistakes recorded\n`,
+    );
 
     // -------------------------------------------------------
     // Summary
@@ -655,12 +832,18 @@ async function main() {
     console.log("=== Seed Complete ===");
     console.log(`Teacher:        ${teacher.name} (${DEMO_PHONE})`);
     console.log(`Classes:        ${classes.length}`);
-    console.log(`Students:       ${allStudents.length} (${allStudents.filter((s) => s.specialAttention).length} with special attention)`);
+    console.log(
+      `Students:       ${allStudents.length} (${allStudents.filter((s) => s.specialAttention).length} with special attention)`,
+    );
     console.log(`Student Groups: ${allGroups.length}`);
     console.log(`Knowledge Areas:${knowledgeAreas.length}`);
     console.log(`Materials:      ${materials.length}`);
-    console.log(`Assignments:    ${assignmentCount} (${analysisCount} analyzed, ${mistakeCount} mistakes)`);
-    console.log(`Exams:          ${examCount} (${examAnalysisCount} analyzed, ${examMistakeCount} exam mistakes)`);
+    console.log(
+      `Assignments:    ${assignmentCount} (${analysisCount} analyzed, ${mistakeCount} mistakes)`,
+    );
+    console.log(
+      `Exams:          ${examCount} (${examAnalysisCount} analyzed, ${examMistakeCount} exam mistakes)`,
+    );
     console.log("===================\n");
   } catch (error) {
     console.error("Seed failed:", error);

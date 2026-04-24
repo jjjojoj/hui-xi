@@ -10,6 +10,7 @@ import {
   File,
   Trash2,
   Eye,
+  ExternalLink,
   Filter,
   Search,
   Plus,
@@ -20,6 +21,7 @@ import {
 import { useAuthStore } from "~/stores/authStore";
 import { TeachingMaterialUpload } from "./TeachingMaterialUpload";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ModalWrapper } from "./ModalWrapper";
 
 interface TeachingMaterial {
   id: number;
@@ -91,6 +93,8 @@ export function TeachingMaterialLibrary({
     id: number;
     title: string;
   } | null>(null);
+  const [selectedMaterial, setSelectedMaterial] =
+    useState<TeachingMaterial | null>(null);
   const [selectedContentType, setSelectedContentType] = useState<
     TeachingMaterialContentType | ""
   >("");
@@ -212,11 +216,27 @@ export function TeachingMaterialLibrary({
     return new Date(dateValue).toLocaleDateString("zh-CN");
   };
 
+  const getPreviewKind = (material: TeachingMaterial) => {
+    if (material.contentType === "image" && material.fileUrl) return "image";
+    if (material.contentType === "video" && material.fileUrl) return "video";
+    if (material.contentType === "audio" && material.fileUrl) return "audio";
+    if (
+      material.fileUrl &&
+      (material.fileUrl.toLowerCase().includes(".pdf") ||
+        material.contentType === "document")
+    ) {
+      return "document";
+    }
+    if (material.textContent?.trim()) return "text";
+    return "generic";
+  };
+
   if (showUpload) {
     return (
       <TeachingMaterialUpload
         onSuccess={handleUploadSuccess}
         onClose={() => setShowUpload(false)}
+        variant={variant}
       />
     );
   }
@@ -367,7 +387,16 @@ export function TeachingMaterialLibrary({
           {filteredMaterials.map((material) => (
             <div
               key={material.id}
-              className="rounded-lg border border-gray-200 p-4 transition-shadow hover:shadow-md"
+              role="button"
+              tabIndex={0}
+              onClick={() => setSelectedMaterial(material)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedMaterial(material);
+                }
+              }}
+              className="cursor-pointer rounded-lg border border-gray-200 p-4 transition-shadow hover:border-blue-200 hover:shadow-md"
             >
               {/* Header */}
               <div className="mb-3 flex items-start justify-between">
@@ -378,7 +407,10 @@ export function TeachingMaterialLibrary({
                   </span>
                 </div>
                 <button
-                  onClick={() => handleDelete(material.id, material.title)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleDelete(material.id, material.title);
+                  }}
                   className="text-gray-400 hover:text-red-600"
                   disabled={deleteMutation.isPending}
                 >
@@ -414,17 +446,17 @@ export function TeachingMaterialLibrary({
                   <span>{formatDate(material.createdAt)}</span>
                 </div>
 
-                {material.fileUrl && (
-                  <a
-                    href={material.fileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
-                  >
-                    <Eye className="h-3 w-3" />
-                    <span>查看</span>
-                  </a>
-                )}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setSelectedMaterial(material);
+                  }}
+                  className="flex items-center space-x-1 text-blue-600 hover:text-blue-800"
+                >
+                  <Eye className="h-3 w-3" />
+                  <span>详情</span>
+                </button>
               </div>
 
               {/* Text Content Preview */}
@@ -451,6 +483,208 @@ export function TeachingMaterialLibrary({
         }}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <ModalWrapper
+        isOpen={!!selectedMaterial}
+        onClose={() => setSelectedMaterial(null)}
+        maxWidth="max-w-5xl"
+      >
+        {selectedMaterial ? (
+          <div className="max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 z-10 flex items-start justify-between border-b border-slate-200 bg-white px-6 py-5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    {getContentTypeIcon(selectedMaterial.contentType)}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                    {getContentTypeLabel(selectedMaterial.contentType)}
+                  </span>
+                  {selectedMaterial.knowledgeArea ? (
+                    <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-600">
+                      {selectedMaterial.knowledgeArea.name}
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="mt-4 text-2xl font-bold text-slate-950">
+                  {selectedMaterial.title}
+                </h3>
+                {selectedMaterial.description ? (
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    {selectedMaterial.description}
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedMaterial(null)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:border-blue-200 hover:text-blue-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-6 px-6 py-6 xl:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-4">
+                {getPreviewKind(selectedMaterial) === "image" &&
+                selectedMaterial.fileUrl ? (
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                    <img
+                      src={selectedMaterial.fileUrl}
+                      alt={selectedMaterial.title}
+                      className="max-h-[560px] w-full object-contain"
+                    />
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "video" &&
+                selectedMaterial.fileUrl ? (
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-950">
+                    <video
+                      src={selectedMaterial.fileUrl}
+                      controls
+                      className="max-h-[560px] w-full"
+                    />
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "audio" &&
+                selectedMaterial.fileUrl ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <div className="mb-3 text-sm font-semibold text-slate-900">
+                      音频内容
+                    </div>
+                    <audio
+                      src={selectedMaterial.fileUrl}
+                      controls
+                      className="w-full"
+                    />
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "document" &&
+                selectedMaterial.fileUrl &&
+                selectedMaterial.fileUrl.toLowerCase().includes(".pdf") ? (
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                    <iframe
+                      src={selectedMaterial.fileUrl}
+                      title={selectedMaterial.title}
+                      className="h-[620px] w-full"
+                    />
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "text" ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <div className="mb-3 text-sm font-semibold text-slate-900">
+                      内容预览
+                    </div>
+                    <div className="whitespace-pre-wrap text-sm leading-7 text-slate-700">
+                      {selectedMaterial.textContent}
+                    </div>
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "document" &&
+                (!selectedMaterial.fileUrl ||
+                  !selectedMaterial.fileUrl.toLowerCase().includes(".pdf")) ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                    <div className="mb-3 text-sm font-semibold text-slate-900">
+                      文档说明
+                    </div>
+                    <p className="text-sm leading-7 text-slate-600">
+                      当前资料已归档为文档类型。若为 Word、Excel
+                      或其他文件格式，可以通过右侧按钮在新标签页查看原文件。
+                    </p>
+                    {selectedMaterial.textContent ? (
+                      <div className="mt-4 whitespace-pre-wrap rounded-lg bg-white p-4 text-sm leading-7 text-slate-700 ring-1 ring-slate-100">
+                        {selectedMaterial.textContent}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {getPreviewKind(selectedMaterial) === "generic" ? (
+                  <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center">
+                    <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm">
+                      {getContentTypeIcon(selectedMaterial.contentType)}
+                    </span>
+                    <div className="mt-4 text-base font-bold text-slate-900">
+                      这份资料暂不支持内嵌预览
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      你仍然可以通过右侧信息区查看元数据，或直接打开原文件。
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+
+              <aside className="space-y-4">
+                <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="text-sm font-bold text-slate-900">
+                    资料信息
+                  </div>
+                  <div className="mt-4 space-y-4 text-sm">
+                    <div className="flex items-start gap-3">
+                      <Calendar className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-slate-400">
+                          创建时间
+                        </div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {formatDate(selectedMaterial.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Tag className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-slate-400">
+                          知识点
+                        </div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {selectedMaterial.knowledgeArea?.name || "未关联"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <Eye className="mt-0.5 h-4 w-4 text-slate-400" />
+                      <div>
+                        <div className="text-xs uppercase tracking-wide text-slate-400">
+                          资料类型
+                        </div>
+                        <div className="mt-1 font-medium text-slate-900">
+                          {getContentTypeLabel(selectedMaterial.contentType)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedMaterial.fileUrl ? (
+                  <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="text-sm font-bold text-slate-900">
+                      原文件
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      若需要完整查看原始文件，可以直接在新标签页打开。
+                    </p>
+                    <a
+                      href={selectedMaterial.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-sm shadow-blue-600/20 transition hover:bg-blue-700"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                      打开原文件
+                    </a>
+                  </div>
+                ) : null}
+              </aside>
+            </div>
+          </div>
+        ) : null}
+      </ModalWrapper>
     </div>
   );
 }

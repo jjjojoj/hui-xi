@@ -24,6 +24,7 @@ interface ClassDataAnalysisProps {
   showHeader?: boolean;
   variant?: "modal" | "page";
   initialClassId?: number | null;
+  showEmbeddedClassSelector?: boolean;
 }
 
 type SortField = "rank" | "name" | "avg" | "assignment" | "exam";
@@ -41,6 +42,7 @@ export function ClassDataAnalysis({
   showHeader = true,
   variant = "modal",
   initialClassId = null,
+  showEmbeddedClassSelector = true,
 }: ClassDataAnalysisProps) {
   const { authToken } = useAuthStore();
   const trpc = useTRPC();
@@ -57,7 +59,7 @@ export function ClassDataAnalysis({
 
   const classesQuery = useQuery({
     ...trpc.getTeacherClasses.queryOptions({ authToken: authToken || "" }),
-    enabled: !!authToken,
+    enabled: showEmbeddedClassSelector && !!authToken,
   });
 
   const trendsQuery = useQuery({
@@ -314,27 +316,34 @@ export function ClassDataAnalysis({
         </div>
       ) : null}
 
-      {/* Class Selector + Time Range */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            选择班级
-          </label>
-          <select
-            value={selectedClassId || ""}
-            onChange={(e) =>
-              setSelectedClassId(e.target.value ? Number(e.target.value) : null)
-            }
-            className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">请选择班级</option>
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.id}>
-                {cls.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div
+        className={`mb-6 grid grid-cols-1 gap-4 ${
+          showEmbeddedClassSelector ? "sm:grid-cols-2" : ""
+        }`}
+      >
+        {showEmbeddedClassSelector ? (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              选择班级
+            </label>
+            <select
+              value={selectedClassId || ""}
+              onChange={(e) =>
+                setSelectedClassId(
+                  e.target.value ? Number(e.target.value) : null,
+                )
+              }
+              className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">请选择班级</option>
+              {classes.map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : null}
         <div>
           <label className="mb-1 block text-sm font-medium text-gray-700">
             时间范围
