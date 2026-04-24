@@ -5,23 +5,23 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
-import {
-  X,
-  Brain,
-} from "lucide-react";
+import { CheckCircle2, Files, Upload, Users, X } from "lucide-react";
 import { useToast } from "~/components/Toast";
 import { getErrorMessage } from "~/utils/trpcError";
 import { FileUploadZone } from "~/components/assignment/FileUploadZone";
-import { AssignmentPreview, type AssignmentFile } from "~/components/assignment/AssignmentPreview";
+import {
+  AssignmentPreview,
+  type AssignmentFile,
+} from "~/components/assignment/AssignmentPreview";
 import { AssignmentConfig } from "~/components/assignment/AssignmentConfig";
 import { TeacherCameraCapture } from "~/components/assignment/TeacherCameraCapture";
 import { UploadSubmitSection } from "~/components/assignment/UploadSubmitSection";
 import { compressImage } from "~/components/assignment/compressImage";
 
 const uploadSchema = z.object({
-  title: z.string().min(1, "Assignment title is required"),
+  title: z.string().min(1, "请填写标题"),
   description: z.string().optional(),
-  selectedModel: z.string().min(1, "Please select an AI model"),
+  selectedModel: z.string().min(1, "请选择识别模型"),
   confidenceThreshold: z.number().min(0).max(1).default(0.7),
   autoAssignStudents: z.boolean().default(true),
 });
@@ -43,7 +43,7 @@ type UploadQueueStatus = "idle" | "running" | "paused" | "completed";
 
 export function EnhancedTeacherAssignmentUpload({
   isOpen,
-  classId,
+  classId: _classId,
   students = [],
   onSuccess,
   onClose,
@@ -59,7 +59,6 @@ export function EnhancedTeacherAssignmentUpload({
   const [completedCount, setCompletedCount] = useState(0);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -110,10 +109,10 @@ export function EnhancedTeacherAssignmentUpload({
 
   const validateFile = (file: File): string | null => {
     if (!file.type.startsWith("image/")) {
-      return "Please select an image file (JPG, PNG, GIF, WebP)";
+      return "请选择图片文件（JPG、PNG、GIF、WebP）";
     }
     if (file.size > 20 * 1024 * 1024) {
-      return "File size must be less than 20MB";
+      return "文件大小不能超过 20MB";
     }
     const allowedTypes = [
       "image/jpeg",
@@ -123,7 +122,7 @@ export function EnhancedTeacherAssignmentUpload({
       "image/webp",
     ];
     if (!allowedTypes.includes(file.type)) {
-      return "Unsupported file format. Please choose JPG, PNG, GIF, or WebP files";
+      return "暂不支持该格式，请使用 JPG、PNG、GIF 或 WebP";
     }
     return null;
   };
@@ -134,7 +133,7 @@ export function EnhancedTeacherAssignmentUpload({
       const currentFileCount = files.length;
 
       if (currentFileCount + fileArray.length > maxFiles) {
-        toast.error(`Maximum ${maxFiles} files allowed`);
+        toast.error(`单次最多上传 ${maxFiles} 份图片`);
         return;
       }
 
@@ -151,11 +150,11 @@ export function EnhancedTeacherAssignmentUpload({
           (f) =>
             f.file.name === file.name &&
             f.file.size === file.size &&
-            f.file.lastModified === file.lastModified
+            f.file.lastModified === file.lastModified,
         );
 
         if (isDuplicate) {
-          toast.error(`${file.name} already exists`);
+          toast.error(`${file.name} 已在队列中`);
           continue;
         }
 
@@ -173,10 +172,10 @@ export function EnhancedTeacherAssignmentUpload({
 
       if (validFiles.length > 0) {
         setFiles((prev) => [...prev, ...validFiles]);
-        toast.success(`Added ${validFiles.length} files`);
+        toast.success(`已加入 ${validFiles.length} 份图片`);
       }
     },
-    [files, maxFiles, toast]
+    [files, maxFiles, toast],
   );
 
   const handleDrag = useCallback((e: React.DragEvent) => {
@@ -196,20 +195,20 @@ export function EnhancedTeacherAssignmentUpload({
       setDragActive(false);
 
       if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-        addFiles(e.dataTransfer.files);
+        void addFiles(e.dataTransfer.files);
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files.length > 0) {
-        addFiles(e.target.files);
+        void addFiles(e.target.files);
         e.target.value = "";
       }
     },
-    [addFiles]
+    [addFiles],
   );
 
   // ─── Camera ────────────────────────────────────────────────────────
@@ -223,8 +222,8 @@ export function EnhancedTeacherAssignmentUpload({
         videoRef.current.srcObject = stream;
         setShowCamera(true);
       }
-    } catch (error) {
-      toast.error("Unable to access camera");
+    } catch {
+      toast.error("无法访问摄像头，请检查浏览器权限");
     }
   };
 
@@ -239,20 +238,20 @@ export function EnhancedTeacherAssignmentUpload({
 
       context?.drawImage(video, 0, 0);
 
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const file = new File(
-            [blob],
-            `camera-capture-${Date.now()}.jpg`,
-            {
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            const file = new File([blob], `camera-capture-${Date.now()}.jpg`, {
               type: "image/jpeg",
               lastModified: Date.now(),
-            }
-          );
-          addFiles([file]);
-          stopCamera();
-        }
-      }, "image/jpeg", 0.8);
+            });
+            void addFiles([file]);
+            stopCamera();
+          }
+        },
+        "image/jpeg",
+        0.8,
+      );
     }
   };
 
@@ -288,12 +287,12 @@ export function EnhancedTeacherAssignmentUpload({
       });
 
       if (!uploadResponse.ok) {
-        throw new Error("Failed to upload file");
+        throw new Error("上传文件失败");
       }
 
       return urlResponse.objectUrl;
-    } catch (error) {
-      throw new Error("Failed to upload file to storage");
+    } catch {
+      throw new Error("上传到存储服务失败");
     }
   };
 
@@ -305,12 +304,12 @@ export function EnhancedTeacherAssignmentUpload({
       status: AssignmentFile["status"],
       progress: number,
       error?: string,
-      updates?: Partial<AssignmentFile>
+      updates?: Partial<AssignmentFile>,
     ) => {
       setFiles((prev) =>
         prev.map((f) =>
-          f.id === fileId ? { ...f, status, progress, error, ...updates } : f
-        )
+          f.id === fileId ? { ...f, status, progress, error, ...updates } : f,
+        ),
       );
     };
 
@@ -328,7 +327,9 @@ export function EnhancedTeacherAssignmentUpload({
       updateFileStatus("uploading", 30);
       const fileUrl = await uploadFileToOSS(compressedFile);
 
-      updateFileStatus("uploading", 50, undefined, { uploadedImageUrl: fileUrl });
+      updateFileStatus("uploading", 50, undefined, {
+        uploadedImageUrl: fileUrl,
+      });
 
       // AI Recognition
       updateFileStatus("recognizing", 60);
@@ -357,7 +358,7 @@ export function EnhancedTeacherAssignmentUpload({
                 .includes(recognition.recognition.studentName.toLowerCase()) ||
               recognition.recognition.studentName
                 .toLowerCase()
-                .includes(s.name.toLowerCase())
+                .includes(s.name.toLowerCase()),
           );
 
           if (matchedStudent) {
@@ -365,7 +366,7 @@ export function EnhancedTeacherAssignmentUpload({
             updateFileStatus("recognizing", 80, undefined, {
               selectedStudentId,
             });
-            toast.success(`Auto-assigned to ${matchedStudent.name}`);
+            toast.success(`已自动匹配到 ${matchedStudent.name}`);
           }
         }
 
@@ -373,8 +374,7 @@ export function EnhancedTeacherAssignmentUpload({
         if (selectedStudentId || !autoAssignStudents) {
           updateFileStatus("processing", 85);
 
-          const finalStudentId =
-            selectedStudentId || students[0]?.id;
+          const finalStudentId = selectedStudentId || students[0]?.id;
 
           if (finalStudentId) {
             const uploadMutation =
@@ -411,33 +411,28 @@ export function EnhancedTeacherAssignmentUpload({
             updateFileStatus("complete", 100);
             setCompletedCount((prev) => prev + 1);
           } else {
-            throw new Error("No student available for assignment");
+            throw new Error("当前班级暂无可分配学生");
           }
         } else {
           // Low confidence, needs manual assignment
-          updateFileStatus(
-            "complete",
-            100,
-            undefined,
-            {
-              recognition: recognition.recognition,
-              uploadedImageUrl: fileUrl,
-            }
-          );
+          updateFileStatus("complete", 100, undefined, {
+            recognition: recognition.recognition,
+            uploadedImageUrl: fileUrl,
+          });
           setCompletedCount((prev) => prev + 1);
           toast(
-            `${file.file.name} uploaded but needs manual student assignment (confidence: ${Math.round(recognition.recognition.confidence * 100)}%)`,
+            `${file.file.name} 已上传，识别置信度 ${Math.round(recognition.recognition.confidence * 100)}%，建议手动确认学生`,
             {
               icon: "⚠️",
               style: {
                 background: "#f59e0b",
                 color: "white",
               },
-            }
+            },
           );
         }
       } else {
-        throw new Error("AI recognition failed");
+        throw new Error("识别失败，请稍后重试");
       }
     } catch (error: unknown) {
       const file = files[fileIndex];
@@ -452,8 +447,8 @@ export function EnhancedTeacherAssignmentUpload({
                   error: getErrorMessage(error),
                   retryCount: f.retryCount + 1,
                 }
-              : f
-          )
+              : f,
+          ),
         );
       } else {
         updateFileStatus("error", 0, getErrorMessage(error));
@@ -463,7 +458,7 @@ export function EnhancedTeacherAssignmentUpload({
 
   const startQueue = async (formData: UploadFormData) => {
     if (!authToken) {
-      toast.error("Please login first");
+      toast.error("请先登录后再上传");
       return;
     }
 
@@ -471,7 +466,7 @@ export function EnhancedTeacherAssignmentUpload({
     setCompletedCount(0);
 
     const pendingFiles = files.filter(
-      (f) => f.status === "pending" || f.status === "error"
+      (f) => f.status === "pending" || f.status === "error",
     );
 
     for (const file of pendingFiles) {
@@ -483,7 +478,9 @@ export function EnhancedTeacherAssignmentUpload({
 
     const successCount = files.filter((f) => f.status === "complete").length;
     if (successCount > 0) {
-      toast.success(`Successfully processed ${successCount} ${uploadType}s!`);
+      toast.success(
+        `已完成 ${successCount} 份${uploadType === "exam" ? "试卷" : "作业"}`,
+      );
       onSuccess?.(successCount);
     }
   };
@@ -494,18 +491,16 @@ export function EnhancedTeacherAssignmentUpload({
 
   const resumeQueue = (formData: UploadFormData) => {
     setQueueStatus("running");
-    startQueue(formData);
+    void startQueue(formData);
   };
 
   const retryFile = (fileId: string, formData: UploadFormData) => {
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === fileId
-          ? { ...f, status: "pending", error: undefined }
-          : f
-      )
+        f.id === fileId ? { ...f, status: "pending", error: undefined } : f,
+      ),
     );
-    processFile(fileId, formData);
+    void processFile(fileId, formData);
   };
 
   const removeFile = (fileId: string) => {
@@ -529,140 +524,162 @@ export function EnhancedTeacherAssignmentUpload({
   const assignStudentToFile = (fileId: string, studentId: number) => {
     setFiles((prev) =>
       prev.map((f) =>
-        f.id === fileId ? { ...f, selectedStudentId: studentId } : f
-      )
+        f.id === fileId ? { ...f, selectedStudentId: studentId } : f,
+      ),
     );
   };
 
   const onSubmit = (data: UploadFormData) => {
     if (files.length === 0) {
-      toast.error("Please select at least one file");
+      toast.error("请先选择至少一张图片");
       return;
     }
-    startQueue(data);
+    void startQueue(data);
   };
 
-  // Cleanup URLs on unmount
   useEffect(() => {
     return () => {
       files.forEach((file) => URL.revokeObjectURL(file.previewUrl));
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!isOpen) return null;
 
   const defaultResumeData: UploadFormData = {
-    title: "Resume",
+    title: "继续上传",
     description: "",
     selectedModel: "siliconcloud/qwen2.5-vl-7b",
     confidenceThreshold: 0.7,
     autoAssignStudents: true,
   };
+  const contentLabel = uploadType === "exam" ? "试卷" : "作业";
+  const waitingCount = files.filter((file) => file.status === "pending").length;
+  const handleStartCamera = () => {
+    void startCamera();
+  };
+  const submitUpload = handleSubmit((data) => {
+    onSubmit(data);
+  });
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden max-w-6xl mx-auto w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Brain className="w-6 h-6 text-blue-600 mr-3" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4 backdrop-blur-sm">
+      <div className="mx-auto flex max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+        <div className="border-b border-slate-200 px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Upload className="h-6 w-6" />
+              </span>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Enhanced{" "}
-                  {uploadType === "exam" ? "Exam" : "Assignment"} Upload
+                <h3 className="text-xl font-bold text-slate-900">
+                  {contentLabel}批量上传
                 </h3>
-                <p className="text-sm text-gray-600">
-                  AI驱动的批量上传：自动识别学生信息、智能分配作业、支持拖拽上传
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  上传后自动识别学生信息、归档到班级，并衔接后续的成绩与学情分析。
                 </p>
-                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                  <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg">
-                    ✨ AI识别学生姓名
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                    <Files className="mr-1 inline h-3.5 w-3.5" />
+                    已选 {files.length} 份
                   </span>
-                  <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg">
-                    🚀 批量处理
+                  <span className="rounded-full bg-violet-50 px-3 py-1 text-violet-700">
+                    <Users className="mr-1 inline h-3.5 w-3.5" />
+                    学生 {students.length} 人
                   </span>
-                  <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-lg">
-                    📱 支持拍照
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                    <CheckCircle2 className="mr-1 inline h-3.5 w-3.5" />
+                    已完成 {completedCount} 份
                   </span>
-                  <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded-lg">
-                    🗜️ 自动压缩
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                    待处理 {waitingCount} 份
                   </span>
                 </div>
               </div>
             </div>
-            {onClose && (
+            {onClose ? (
               <button
                 onClick={onClose}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
-                <X className="w-5 h-5" />
+                <X className="h-5 w-5" />
               </button>
-            )}
+            ) : null}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit as any)} className="p-6 space-y-6">
-          {/* Configuration */}
-          <AssignmentConfig
-            uploadType={uploadType}
-            register={register}
-            watch={watch}
-            errors={errors}
-            showAdvancedSettings={showAdvancedSettings}
-            onToggleAdvancedSettings={() =>
-              setShowAdvancedSettings(!showAdvancedSettings)
-            }
-            models={modelsQuery.data?.models}
-          />
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submitUpload(event);
+          }}
+          className="grid gap-6 overflow-y-auto p-6 xl:grid-cols-[minmax(0,1.4fr)_360px]"
+        >
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5">
+              <FileUploadZone
+                dragActive={dragActive}
+                onDrag={handleDrag}
+                onDrop={handleDrop}
+                onFileSelect={handleFileSelect}
+                onStartCamera={handleStartCamera}
+                maxFiles={maxFiles}
+                allowMultiple={allowMultiple}
+                uploadType={uploadType}
+              />
+            </section>
 
-          {/* File Upload Zone */}
-          <FileUploadZone
-            dragActive={dragActive}
-            onDrag={handleDrag}
-            onDrop={handleDrop}
-            onFileSelect={handleFileSelect}
-            onStartCamera={startCamera}
-            maxFiles={maxFiles}
-            allowMultiple={allowMultiple}
-            uploadType={uploadType}
-          />
+            <section className="rounded-2xl border border-slate-200 bg-white p-5">
+              <AssignmentPreview
+                files={files}
+                maxFiles={maxFiles}
+                students={students}
+                confidenceThreshold={confidenceThreshold}
+                queueStatus={queueStatus}
+                completedCount={completedCount}
+                onRemoveFile={removeFile}
+                onClearCompleted={clearCompleted}
+                onRetryFile={(fileId) =>
+                  retryFile(fileId, {
+                    title: "重试上传",
+                    description: "",
+                    selectedModel: "siliconcloud/qwen2.5-vl-7b",
+                    confidenceThreshold: 0.7,
+                    autoAssignStudents: true,
+                  })
+                }
+                onAssignStudentToFile={assignStudentToFile}
+              />
+            </section>
+          </div>
 
-          {/* Preview & Queue */}
-          <AssignmentPreview
-            files={files}
-            maxFiles={maxFiles}
-            students={students}
-            confidenceThreshold={confidenceThreshold}
-            queueStatus={queueStatus}
-            completedCount={completedCount}
-            onRemoveFile={removeFile}
-            onClearCompleted={clearCompleted}
-            onRetryFile={(fileId) =>
-              retryFile(fileId, {
-                title: "Retry",
-                description: "",
-                selectedModel: "siliconcloud/qwen2.5-vl-7b",
-                confidenceThreshold: 0.7,
-                autoAssignStudents: true,
-              })
-            }
-            onAssignStudentToFile={assignStudentToFile}
-          />
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5">
+              <AssignmentConfig
+                uploadType={uploadType}
+                register={register}
+                watch={watch}
+                errors={errors}
+                showAdvancedSettings={showAdvancedSettings}
+                onToggleAdvancedSettings={() =>
+                  setShowAdvancedSettings(!showAdvancedSettings)
+                }
+                models={modelsQuery.data?.models}
+              />
+            </section>
 
-          {/* Submit Section */}
-          <UploadSubmitSection
-            uploadType={uploadType}
-            files={files}
-            queueStatus={queueStatus}
-            completedCount={completedCount}
-            onPause={pauseQueue}
-            onResume={() => resumeQueue(defaultResumeData)}
-          />
+            <section className="rounded-2xl border border-slate-200 bg-white p-5">
+              <UploadSubmitSection
+                uploadType={uploadType}
+                files={files}
+                queueStatus={queueStatus}
+                completedCount={completedCount}
+                onPause={pauseQueue}
+                onResume={() => resumeQueue(defaultResumeData)}
+              />
+            </section>
+          </div>
         </form>
 
-        {/* Camera Modal */}
         <TeacherCameraCapture
           isOpen={showCamera}
           videoRef={videoRef}
@@ -670,8 +687,6 @@ export function EnhancedTeacherAssignmentUpload({
           onCapture={capturePhoto}
           onClose={stopCamera}
         />
-
-        <canvas ref={canvasRef} className="hidden" />
       </div>
     </div>
   );

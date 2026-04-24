@@ -1,21 +1,21 @@
-import React from 'react';
+import React from "react";
 import {
-  LineChart,
+  CartesianGrid,
+  Legend,
   Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+} from "recharts";
+import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 
 interface PerformanceDataPoint {
   date: string;
   score: number;
   title?: string;
-  type: 'assignment' | 'exam';
+  type: "assignment" | "exam";
 }
 
 interface PerformanceChartProps {
@@ -28,152 +28,212 @@ interface PerformanceChartProps {
 
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({
   data,
-  title = "Performance Trends",
-  height = 300,
+  title = "成绩趋势",
+  height = 280,
   showLegend = true,
   className = "",
 }) => {
-  // Group data by date and type for better visualization
   const processedData = React.useMemo(() => {
-    const groupedByDate = new Map<string, { date: string; assignment?: number; exam?: number; }>();
-    
-    data.forEach(point => {
+    const groupedByDate = new Map<
+      string,
+      { date: string; assignment?: number; exam?: number }
+    >();
+
+    data.forEach((point) => {
       const existing = groupedByDate.get(point.date) || { date: point.date };
-      if (point.type === 'assignment') {
+      if (point.type === "assignment") {
         existing.assignment = point.score;
       } else {
         existing.exam = point.score;
       }
       groupedByDate.set(point.date, existing);
     });
-    
-    return Array.from(groupedByDate.values()).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+
+    return Array.from(groupedByDate.values()).sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
   }, [data]);
 
-  // Calculate trend
-  const calculateTrend = () => {
-    if (processedData.length < 2) return 'stable';
-    
-    const allScores = data.map(d => d.score);
-    const firstHalf = allScores.slice(0, Math.floor(allScores.length / 2));
-    const secondHalf = allScores.slice(Math.floor(allScores.length / 2));
-    
-    const firstAvg = firstHalf.reduce((sum, score) => sum + score, 0) / firstHalf.length;
-    const secondAvg = secondHalf.reduce((sum, score) => sum + score, 0) / secondHalf.length;
-    
+  const trend = React.useMemo(() => {
+    if (data.length < 2) return "stable" as const;
+
+    const allScores = data.map((item) => item.score);
+    const midpoint = Math.floor(allScores.length / 2);
+    const firstHalf = allScores.slice(0, midpoint);
+    const secondHalf = allScores.slice(midpoint);
+
+    if (firstHalf.length === 0 || secondHalf.length === 0) {
+      return "stable" as const;
+    }
+
+    const firstAvg =
+      firstHalf.reduce((sum, score) => sum + score, 0) / firstHalf.length;
+    const secondAvg =
+      secondHalf.reduce((sum, score) => sum + score, 0) / secondHalf.length;
     const diff = secondAvg - firstAvg;
-    
-    if (diff > 5) return 'improving';
-    if (diff < -5) return 'declining';
-    return 'stable';
-  };
 
-  const trend = calculateTrend();
-  const averageScore = data.length > 0 
-    ? (data.reduce((sum, d) => sum + d.score, 0) / data.length).toFixed(1)
-    : '0';
+    if (diff > 5) return "improving" as const;
+    if (diff < -5) return "declining" as const;
+    return "stable" as const;
+  }, [data]);
 
-  const TrendIcon = trend === 'improving' ? TrendingUp : 
-                   trend === 'declining' ? TrendingDown : Minus;
-  
-  const trendColor = trend === 'improving' ? 'text-green-600' : 
-                    trend === 'declining' ? 'text-red-600' : 'text-gray-600';
+  const averageScore =
+    data.length > 0
+      ? (data.reduce((sum, item) => sum + item.score, 0) / data.length).toFixed(
+          1,
+        )
+      : "0";
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-          <p className="text-sm font-semibold text-gray-900 mb-2">
-            {new Date(label).toLocaleDateString('zh-CN')}
-          </p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.dataKey === 'assignment' ? '作业' : '考试'}: {entry.value}分
-            </p>
+  const TrendIcon =
+    trend === "improving"
+      ? TrendingUp
+      : trend === "declining"
+        ? TrendingDown
+        : Minus;
+  const trendColor =
+    trend === "improving"
+      ? "text-emerald-600"
+      : trend === "declining"
+        ? "text-rose-600"
+        : "text-slate-500";
+
+  const CustomTooltip = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean;
+    payload?: Array<{ color?: string; dataKey?: string; value?: number }>;
+    label?: string;
+  }) => {
+    if (!active || !payload?.length) return null;
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+        <div className="mb-2 text-xs font-bold text-slate-500">
+          {label ? new Date(label).toLocaleDateString("zh-CN") : "暂无日期"}
+        </div>
+        <div className="space-y-1.5">
+          {payload.map((entry) => (
+            <div
+              key={entry.dataKey}
+              className="flex items-center justify-between gap-4 text-sm"
+            >
+              <span className="font-medium text-slate-600">
+                {entry.dataKey === "assignment" ? "作业" : "考试"}
+              </span>
+              <span className="font-bold" style={{ color: entry.color }}>
+                {entry.value}分
+              </span>
+            </div>
           ))}
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
   if (data.length === 0) {
     return (
-      <div className={`card ${className}`}>
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">{title}</h3>
-          <div className="text-center py-8">
-            <TrendingUp className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">暂无性能数据</p>
-          </div>
+      <section
+        className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      >
+        <div className="text-base font-bold text-slate-950">{title}</div>
+        <div className="flex min-h-64 flex-col items-center justify-center text-center">
+          <TrendingUp className="h-10 w-10 text-slate-300" />
+          <p className="mt-3 text-sm font-medium text-slate-500">
+            暂无成绩趋势数据
+          </p>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className={`card ${className}`}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900">{title}</h3>
-          <div className="flex items-center space-x-4">
-            <div className="text-right">
-              <div className="text-sm text-gray-600">平均分</div>
-              <div className="text-xl font-bold text-gray-900">{averageScore}</div>
-            </div>
-            <div className={`flex items-center space-x-1 ${trendColor}`}>
-              <TrendIcon className="w-4 h-4" />
-              <span className="text-sm font-semibold">
-                {trend === 'improving' ? '上升' : trend === 'declining' ? '下降' : '稳定'}
-              </span>
+    <section
+      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+    >
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div>
+          <h3 className="text-base font-bold text-slate-950">{title}</h3>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            对比作业和试卷的阶段变化
+          </p>
+        </div>
+        <div className="flex items-center gap-5">
+          <div className="text-right">
+            <div className="text-xs font-medium text-slate-500">平均分</div>
+            <div className="mt-1 text-xl font-bold text-slate-950">
+              {averageScore}
             </div>
           </div>
-        </div>
-        
-        <div style={{ height }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={processedData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                tick={{ fontSize: 12 }}
-                label={{ value: '分数', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip content={<CustomTooltip />} />
-              {showLegend && (
-                <Legend 
-                  formatter={(value) => value === 'assignment' ? '作业' : '考试'}
-                />
-              )}
-              <Line
-                type="monotone"
-                dataKey="assignment"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: '#3b82f6', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, stroke: '#3b82f6', strokeWidth: 2 }}
-                connectNulls={false}
-              />
-              <Line
-                type="monotone"
-                dataKey="exam"
-                stroke="#8b5cf6"
-                strokeWidth={2}
-                dot={{ fill: '#8b5cf6', strokeWidth: 2, r: 4 }}
-                activeDot={{ r: 6, stroke: '#8b5cf6', strokeWidth: 2 }}
-                connectNulls={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+          <div
+            className={`flex items-center gap-1 text-sm font-semibold ${trendColor}`}
+          >
+            <TrendIcon className="h-4 w-4" />
+            {trend === "improving"
+              ? "上升"
+              : trend === "declining"
+                ? "下降"
+                : "稳定"}
+          </div>
         </div>
       </div>
-    </div>
+
+      <div style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={processedData}>
+            <CartesianGrid
+              stroke="#e2e8f0"
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="date"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+              tickFormatter={(value) =>
+                new Date(String(value)).toLocaleDateString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+              }
+            />
+            <YAxis
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            {showLegend ? (
+              <Legend
+                formatter={(value) =>
+                  value === "assignment" ? "作业" : "考试"
+                }
+              />
+            ) : null}
+            <Line
+              type="monotone"
+              dataKey="assignment"
+              stroke="#3b82f6"
+              strokeWidth={2.5}
+              dot={{ r: 3, fill: "#3b82f6", strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: "#3b82f6" }}
+              connectNulls={false}
+            />
+            <Line
+              type="monotone"
+              dataKey="exam"
+              stroke="#8b5cf6"
+              strokeWidth={2.5}
+              dot={{ r: 3, fill: "#8b5cf6", strokeWidth: 0 }}
+              activeDot={{ r: 5, fill: "#8b5cf6" }}
+              connectNulls={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
   );
 };

@@ -18,6 +18,7 @@ import { Route as AuthIndexImport } from './../routes/auth/index'
 import { Route as DashboardStudentsImport } from './../routes/dashboard/students'
 import { Route as DashboardSettingsImport } from './../routes/dashboard/settings'
 import { Route as DashboardReportsImport } from './../routes/dashboard/reports'
+import { Route as DashboardMistakesImport } from './../routes/dashboard/mistakes'
 import { Route as DashboardMessagesImport } from './../routes/dashboard/messages'
 import { Route as DashboardLearningAnalysisImport } from './../routes/dashboard/learning-analysis'
 import { Route as DashboardKnowledgeMapImport } from './../routes/dashboard/knowledge-map'
@@ -93,6 +94,12 @@ const DashboardSettingsRoute = DashboardSettingsImport.update({
 const DashboardReportsRoute = DashboardReportsImport.update({
   id: '/dashboard/reports',
   path: '/dashboard/reports',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const DashboardMistakesRoute = DashboardMistakesImport.update({
+  id: '/dashboard/mistakes',
+  path: '/dashboard/mistakes',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -246,6 +253,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardMessagesImport
       parentRoute: typeof rootRoute
     }
+    '/dashboard/mistakes': {
+      id: '/dashboard/mistakes'
+      path: '/dashboard/mistakes'
+      fullPath: '/dashboard/mistakes'
+      preLoaderRoute: typeof DashboardMistakesImport
+      parentRoute: typeof rootRoute
+    }
     '/dashboard/reports': {
       id: '/dashboard/reports'
       path: '/dashboard/reports'
@@ -314,6 +328,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/knowledge-map': typeof DashboardKnowledgeMapRoute
   '/dashboard/learning-analysis': typeof DashboardLearningAnalysisRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
+  '/dashboard/mistakes': typeof DashboardMistakesRoute
   '/dashboard/reports': typeof DashboardReportsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/students': typeof DashboardStudentsRoute
@@ -337,6 +352,7 @@ export interface FileRoutesByTo {
   '/dashboard/knowledge-map': typeof DashboardKnowledgeMapRoute
   '/dashboard/learning-analysis': typeof DashboardLearningAnalysisRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
+  '/dashboard/mistakes': typeof DashboardMistakesRoute
   '/dashboard/reports': typeof DashboardReportsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/students': typeof DashboardStudentsRoute
@@ -361,6 +377,7 @@ export interface FileRoutesById {
   '/dashboard/knowledge-map': typeof DashboardKnowledgeMapRoute
   '/dashboard/learning-analysis': typeof DashboardLearningAnalysisRoute
   '/dashboard/messages': typeof DashboardMessagesRoute
+  '/dashboard/mistakes': typeof DashboardMistakesRoute
   '/dashboard/reports': typeof DashboardReportsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/dashboard/students': typeof DashboardStudentsRoute
@@ -386,6 +403,7 @@ export interface FileRouteTypes {
     | '/dashboard/knowledge-map'
     | '/dashboard/learning-analysis'
     | '/dashboard/messages'
+    | '/dashboard/mistakes'
     | '/dashboard/reports'
     | '/dashboard/settings'
     | '/dashboard/students'
@@ -408,6 +426,7 @@ export interface FileRouteTypes {
     | '/dashboard/knowledge-map'
     | '/dashboard/learning-analysis'
     | '/dashboard/messages'
+    | '/dashboard/mistakes'
     | '/dashboard/reports'
     | '/dashboard/settings'
     | '/dashboard/students'
@@ -430,6 +449,7 @@ export interface FileRouteTypes {
     | '/dashboard/knowledge-map'
     | '/dashboard/learning-analysis'
     | '/dashboard/messages'
+    | '/dashboard/mistakes'
     | '/dashboard/reports'
     | '/dashboard/settings'
     | '/dashboard/students'
@@ -454,6 +474,7 @@ export interface RootRouteChildren {
   DashboardKnowledgeMapRoute: typeof DashboardKnowledgeMapRoute
   DashboardLearningAnalysisRoute: typeof DashboardLearningAnalysisRoute
   DashboardMessagesRoute: typeof DashboardMessagesRoute
+  DashboardMistakesRoute: typeof DashboardMistakesRoute
   DashboardReportsRoute: typeof DashboardReportsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardStudentsRoute: typeof DashboardStudentsRoute
@@ -477,6 +498,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardKnowledgeMapRoute: DashboardKnowledgeMapRoute,
   DashboardLearningAnalysisRoute: DashboardLearningAnalysisRoute,
   DashboardMessagesRoute: DashboardMessagesRoute,
+  DashboardMistakesRoute: DashboardMistakesRoute,
   DashboardReportsRoute: DashboardReportsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardStudentsRoute: DashboardStudentsRoute,
@@ -510,6 +532,7 @@ export const routeTree = rootRoute
         "/dashboard/knowledge-map",
         "/dashboard/learning-analysis",
         "/dashboard/messages",
+        "/dashboard/mistakes",
         "/dashboard/reports",
         "/dashboard/settings",
         "/dashboard/students",
@@ -557,6 +580,9 @@ export const routeTree = rootRoute
     },
     "/dashboard/messages": {
       "filePath": "dashboard/messages.tsx"
+    },
+    "/dashboard/mistakes": {
+      "filePath": "dashboard/mistakes.tsx"
     },
     "/dashboard/reports": {
       "filePath": "dashboard/reports.tsx"

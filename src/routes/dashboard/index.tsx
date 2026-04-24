@@ -47,7 +47,7 @@ function DashboardOverview() {
           <ModuleButton icon={Brain} onClick={ctx.openQuestionGenerator}>
             智能出题
           </ModuleButton>
-          <ModuleButton icon={Upload} onClick={ctx.openSelectedClass}>
+          <ModuleButton icon={Upload} onClick={ctx.openUploadForSelectedClass}>
             上传作业
           </ModuleButton>
         </>

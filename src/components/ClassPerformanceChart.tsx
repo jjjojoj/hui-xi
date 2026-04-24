@@ -1,26 +1,24 @@
-import React, { useState } from 'react';
+import React from "react";
 import {
-  AreaChart,
   Area,
-  BarChart,
+  AreaChart,
   Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
+  BarChart,
   CartesianGrid,
-  Tooltip,
   Legend,
   ResponsiveContainer,
-} from 'recharts';
-import { Users, FileText, Award, Target, TrendingUp } from 'lucide-react';
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Target, TrendingUp, Users } from "lucide-react";
 
 interface ClassPerformanceData {
   performanceTrends: Array<{
     date: string;
     averageScore: number;
     count: number;
-    type: 'assignment' | 'exam';
+    type: "assignment" | "exam";
   }>;
   participationTrends: Array<{
     date: string;
@@ -39,241 +37,334 @@ interface ClassPerformanceChartProps {
   height?: number;
 }
 
+type ChartTab = "performance" | "participation" | "mistakes";
+
 export const ClassPerformanceChart: React.FC<ClassPerformanceChartProps> = ({
   data,
   className = "",
-  height = 350,
+  height = 340,
 }) => {
-  const [activeTab, setActiveTab] = useState<'performance' | 'participation' | 'mistakes'>('performance');
+  const [activeTab, setActiveTab] = React.useState<ChartTab>("performance");
 
-  // Process performance data for combined view
   const combinedPerformanceData = React.useMemo(() => {
-    const dateMap = new Map<string, { date: string; assignment?: number; exam?: number; }>();
-    
-    data.performanceTrends.forEach(trend => {
+    const dateMap = new Map<
+      string,
+      { date: string; assignment?: number; exam?: number }
+    >();
+
+    data.performanceTrends.forEach((trend) => {
       const existing = dateMap.get(trend.date) || { date: trend.date };
-      if (trend.type === 'assignment') {
+      if (trend.type === "assignment") {
         existing.assignment = trend.averageScore;
       } else {
         existing.exam = trend.averageScore;
       }
       dateMap.set(trend.date, existing);
     });
-    
-    return Array.from(dateMap.values()).sort((a, b) => 
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+
+    return Array.from(dateMap.values()).sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
   }, [data.performanceTrends]);
 
   const tabs = [
-    { id: 'performance', label: '成绩趋势', icon: TrendingUp },
-    { id: 'participation', label: '参与度', icon: Users },
-    { id: 'mistakes', label: '错误分析', icon: Target },
+    { id: "performance" as const, label: "成绩趋势", icon: TrendingUp },
+    { id: "participation" as const, label: "参与度", icon: Users },
+    { id: "mistakes" as const, label: "错题波动", icon: Target },
   ];
 
-  const PerformanceTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-          <p className="text-sm font-semibold text-gray-900 mb-2">
-            {new Date(label).toLocaleDateString('zh-CN')}
-          </p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.dataKey === 'assignment' ? '平均作业分数' : 
-               entry.dataKey === 'exam' ? '平均考试分数' :
-               entry.dataKey === 'participationRate' ? '参与率' :
-               entry.dataKey === 'mistakes' ? '错误数' : entry.dataKey}: {entry.value}
-               {entry.dataKey === 'participationRate' ? '%' : entry.dataKey === 'mistakes' ? '个' : '分'}
-            </p>
-          ))}
+  const summary = {
+    performanceAverage:
+      combinedPerformanceData.length > 0
+        ? Math.round(
+            combinedPerformanceData.reduce(
+              (sum, item) => sum + (item.assignment || 0) + (item.exam || 0),
+              0,
+            ) / Math.max(1, combinedPerformanceData.length * 2),
+          )
+        : 0,
+    participationAverage:
+      data.participationTrends.length > 0
+        ? Math.round(
+            data.participationTrends.reduce(
+              (sum, item) => sum + item.participationRate,
+              0,
+            ) / data.participationTrends.length,
+          )
+        : 0,
+    mistakeTotal: data.mistakeTrends.reduce(
+      (sum, item) => sum + item.mistakes,
+      0,
+    ),
+  };
+
+  const CustomTooltip = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean;
+    payload?: Array<{ color?: string; dataKey?: string; value?: number }>;
+    label?: string;
+  }) => {
+    if (!active || !payload?.length) return null;
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+        <div className="mb-2 text-xs font-bold text-slate-500">
+          {label ? new Date(label).toLocaleDateString("zh-CN") : "暂无日期"}
         </div>
-      );
-    }
-    return null;
+        <div className="space-y-1.5">
+          {payload.map((entry) => {
+            const unit =
+              entry.dataKey === "participationRate"
+                ? "%"
+                : entry.dataKey === "mistakes"
+                  ? "个"
+                  : "分";
+            const copy =
+              entry.dataKey === "assignment"
+                ? "作业平均分"
+                : entry.dataKey === "exam"
+                  ? "试卷平均分"
+                  : entry.dataKey === "participationRate"
+                    ? "参与率"
+                    : "错题数";
+            return (
+              <div
+                key={entry.dataKey}
+                className="flex items-center justify-between gap-4 text-sm"
+              >
+                <span className="font-medium text-slate-600">{copy}</span>
+                <span className="font-bold" style={{ color: entry.color }}>
+                  {entry.value}
+                  {unit}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
   };
 
   const renderChart = () => {
-    switch (activeTab) {
-      case 'performance':
-        return (
-          <ResponsiveContainer width="100%" height={height}>
-            <AreaChart data={combinedPerformanceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                tick={{ fontSize: 12 }}
-                label={{ value: '平均分', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip content={<PerformanceTooltip />} />
-              <Legend formatter={(value) => value === 'assignment' ? '作业平均分' : '考试平均分'} />
-              <Area
-                type="monotone"
-                dataKey="assignment"
-                stackId="1"
-                stroke="#3b82f6"
-                fill="#3b82f6"
-                fillOpacity={0.3}
-              />
-              <Area
-                type="monotone"
-                dataKey="exam"
-                stackId="2"
-                stroke="#8b5cf6"
-                fill="#8b5cf6"
-                fillOpacity={0.3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-        
-      case 'participation':
-        return (
-          <ResponsiveContainer width="100%" height={height}>
-            <AreaChart data={data.participationTrends}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis 
-                domain={[0, 100]}
-                tick={{ fontSize: 12 }}
-                label={{ value: '参与率 (%)', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip content={<PerformanceTooltip />} />
-              <Legend formatter={() => '班级参与率'} />
-              <Area
-                type="monotone"
-                dataKey="participationRate"
-                stroke="#10b981"
-                fill="#10b981"
-                fillOpacity={0.3}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        );
-        
-      case 'mistakes':
-        return (
-          <ResponsiveContainer width="100%" height={height}>
-            <BarChart data={data.mistakeTrends}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="date"
-                tick={{ fontSize: 12 }}
-                tickFormatter={(value) => new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
-              />
-              <YAxis 
-                tick={{ fontSize: 12 }}
-                label={{ value: '错误数量', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip content={<PerformanceTooltip />} />
-              <Legend formatter={() => '每日错误数'} />
-              <Bar dataKey="mistakes" fill="#f59e0b" />
-            </BarChart>
-          </ResponsiveContainer>
-        );
-        
-      default:
-        return null;
+    if (activeTab === "performance") {
+      return (
+        <ResponsiveContainer width="100%" height={height}>
+          <AreaChart data={combinedPerformanceData}>
+            <CartesianGrid
+              stroke="#e2e8f0"
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="date"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+              tickFormatter={(value) =>
+                new Date(String(value)).toLocaleDateString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+              }
+            />
+            <YAxis
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Legend
+              formatter={(value) =>
+                value === "assignment" ? "作业平均分" : "试卷平均分"
+              }
+            />
+            <Area
+              type="monotone"
+              dataKey="assignment"
+              stroke="#3b82f6"
+              fill="#3b82f6"
+              fillOpacity={0.18}
+              strokeWidth={2.5}
+            />
+            <Area
+              type="monotone"
+              dataKey="exam"
+              stroke="#8b5cf6"
+              fill="#8b5cf6"
+              fillOpacity={0.14}
+              strokeWidth={2.5}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
     }
+
+    if (activeTab === "participation") {
+      return (
+        <ResponsiveContainer width="100%" height={height}>
+          <AreaChart data={data.participationTrends}>
+            <CartesianGrid
+              stroke="#e2e8f0"
+              strokeDasharray="3 3"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="date"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+              tickFormatter={(value) =>
+                new Date(String(value)).toLocaleDateString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+              }
+            />
+            <YAxis
+              domain={[0, 100]}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+            />
+            <Tooltip content={<CustomTooltip />} />
+            <Area
+              type="monotone"
+              dataKey="participationRate"
+              stroke="#10b981"
+              fill="#10b981"
+              fillOpacity={0.18}
+              strokeWidth={2.5}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      );
+    }
+
+    return (
+      <ResponsiveContainer width="100%" height={height}>
+        <BarChart data={data.mistakeTrends}>
+          <CartesianGrid
+            stroke="#e2e8f0"
+            strokeDasharray="3 3"
+            vertical={false}
+          />
+          <XAxis
+            dataKey="date"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: 12 }}
+            tickFormatter={(value) =>
+              new Date(String(value)).toLocaleDateString("zh-CN", {
+                month: "2-digit",
+                day: "2-digit",
+              })
+            }
+          />
+          <YAxis
+            axisLine={false}
+            tickLine={false}
+            tick={{ fill: "#64748b", fontSize: 12 }}
+          />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey="mistakes" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    );
   };
 
   return (
-    <div className={`card ${className}`}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-gray-900">班级表现分析</h3>
-          
-          {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-            {tabs.map((tab) => {
-              const Icon = tab.icon;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-white text-blue-600 shadow-sm'
-                      : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        
-        {/* Chart Content */}
+    <section
+      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+    >
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div>
-          {renderChart()}
+          <h3 className="text-base font-bold text-slate-950">班级表现趋势</h3>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            从成绩、参与度和错题波动中判断当前班级学习状态。
+          </p>
         </div>
-        
-        {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {activeTab === 'performance' 
-                ? combinedPerformanceData.length > 0
-                  ? Math.round(combinedPerformanceData.reduce((sum, d) => sum + (d.assignment || 0) + (d.exam || 0), 0) / (combinedPerformanceData.length * 2))
-                  : 0
-                : activeTab === 'participation'
-                ? data.participationTrends.length > 0
-                  ? Math.round(data.participationTrends.reduce((sum, d) => sum + d.participationRate, 0) / data.participationTrends.length)
-                  : 0
-                : data.mistakeTrends.reduce((sum, d) => sum + d.mistakes, 0)
-              }
-              {activeTab === 'participation' ? '%' : activeTab === 'mistakes' ? '个' : '分'}
-            </div>
-            <div className="text-sm text-gray-600">
-              {activeTab === 'performance' ? '平均成绩' : 
-               activeTab === 'participation' ? '平均参与率' : '总错误数'}
-            </div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {activeTab === 'performance' 
-                ? data.performanceTrends.filter(t => t.type === 'assignment').length
-                : activeTab === 'participation'
-                ? data.participationTrends.length
-                : data.mistakeTrends.length
-              }
-            </div>
-            <div className="text-sm text-gray-600">
-              {activeTab === 'performance' ? '作业次数' : 
-               activeTab === 'participation' ? '活跃天数' : '错误天数'}
-            </div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {activeTab === 'performance' 
-                ? data.performanceTrends.filter(t => t.type === 'exam').length
-                : activeTab === 'participation'
-                ? Math.round(data.participationTrends.reduce((sum, d) => sum + d.activeStudents, 0) / Math.max(data.participationTrends.length, 1))
-                : data.mistakeTrends.length > 0
-                ? Math.round(data.mistakeTrends.reduce((sum, d) => sum + d.mistakes, 0) / data.mistakeTrends.length)
-                : 0
-              }
-            </div>
-            <div className="text-sm text-gray-600">
-              {activeTab === 'performance' ? '考试次数' : 
-               activeTab === 'participation' ? '平均活跃学生' : '平均每日错误'}
-            </div>
-          </div>
+
+        <div className="flex flex-wrap rounded-lg bg-slate-100 p-1">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
+                  active
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-900"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
-    </div>
+
+      {renderChart()}
+
+      <div className="mt-6 grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-3">
+        <StatItem
+          label={
+            activeTab === "performance"
+              ? "近期平均分"
+              : activeTab === "participation"
+                ? "平均参与率"
+                : "错题总量"
+          }
+          value={
+            activeTab === "performance"
+              ? `${summary.performanceAverage}分`
+              : activeTab === "participation"
+                ? `${summary.participationAverage}%`
+                : `${summary.mistakeTotal}个`
+          }
+        />
+        <StatItem
+          label={
+            activeTab === "performance"
+              ? "记录次数"
+              : activeTab === "participation"
+                ? "活跃天数"
+                : "波动天数"
+          }
+          value={
+            activeTab === "performance"
+              ? `${data.performanceTrends.length}次`
+              : activeTab === "participation"
+                ? `${data.participationTrends.length}天`
+                : `${data.mistakeTrends.length}天`
+          }
+        />
+        <StatItem
+          label="当前查看"
+          value={
+            activeTab === "performance"
+              ? "成绩趋势"
+              : activeTab === "participation"
+                ? "参与趋势"
+                : "错题趋势"
+          }
+        />
+      </div>
+    </section>
   );
 };
+
+function StatItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-4 py-4 ring-1 ring-slate-100">
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className="mt-2 text-xl font-bold text-slate-950">{value}</div>
+    </div>
+  );
+}

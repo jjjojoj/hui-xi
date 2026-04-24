@@ -542,7 +542,7 @@ function AssignmentAnalysis({
               icon: Upload,
               title: "上传或批量分析作业",
               text: "进入当前班级，继续处理学生提交记录。",
-              onClick: ctx.openSelectedClass,
+              onClick: ctx.openUploadForSelectedClass,
             },
             {
               icon: Brain,

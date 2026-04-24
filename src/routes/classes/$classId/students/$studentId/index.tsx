@@ -1,20 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { z } from "zod";
 import { useTRPC } from "~/trpc/react";
 import { useAuthStore } from "~/stores/authStore";
-import { RequireAuth } from "~/components/RequireAuth";
-import { StudentDetailHeader } from "~/components/student/StudentDetailHeader";
+import { getErrorMessage } from "~/utils/trpcError";
+import {
+  DashboardShell,
+  EmptyState,
+  MetricCard,
+  ModuleButton,
+  Panel,
+} from "~/components/dashboard/DashboardShell";
 import { StudentPerformanceChart } from "~/components/student/StudentPerformanceChart";
 import {
-  User,
-  FileText,
+  Award,
+  BookOpen,
+  Brain,
   CheckCircle,
   Clock,
-  Award,
+  FileText,
   Target,
-  Brain,
+  TrendingUp,
+  Upload,
+  User,
 } from "lucide-react";
+
+const studentProfileParamsSchema = z.object({
+  classId: z.string(),
+  studentId: z.string(),
+});
 
 export const Route = createFileRoute("/classes/$classId/students/$studentId/")({
   component: StudentProfile,
@@ -22,26 +37,40 @@ export const Route = createFileRoute("/classes/$classId/students/$studentId/")({
 
 function StudentProfile() {
   const navigate = useNavigate();
-  const { classId, studentId } = Route.useParams();
+  const { classId, studentId } = studentProfileParamsSchema.parse(
+    Route.useParams(),
+  );
+  const classIdNumber = Number.parseInt(classId, 10);
+  const studentIdNumber = Number.parseInt(studentId, 10);
   const { authToken, teacher } = useAuthStore();
   const trpc = useTRPC();
-  const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
+  const [timeRange, setTimeRange] = useState<
+    "7d" | "30d" | "90d" | "1y" | "all"
+  >("30d");
 
   const studentQuery = useQuery({
     ...trpc.getStudentProfileData.queryOptions({
       authToken: authToken || "",
-      studentId: parseInt(studentId)
+      studentId: studentIdNumber,
     }),
-    enabled: !!authToken && !!studentId,
+    retry: false,
+    enabled:
+      !!authToken &&
+      Number.isFinite(studentIdNumber) &&
+      Number.isFinite(classIdNumber),
   });
 
   const performanceTrendsQuery = useQuery({
     ...trpc.getStudentPerformanceTrends.queryOptions({
       authToken: authToken || "",
-      studentId: parseInt(studentId),
-      timeRange: timeRange
+      studentId: studentIdNumber,
+      timeRange,
     }),
-    enabled: !!authToken && !!studentId,
+    retry: false,
+    enabled:
+      !!authToken &&
+      Number.isFinite(studentIdNumber) &&
+      Number.isFinite(classIdNumber),
   });
 
   if (!teacher) {
@@ -50,280 +79,374 @@ function StudentProfile() {
 
   const studentData = studentQuery.data?.student;
   const statistics = studentQuery.data?.statistics;
+  const studentErrorMessage = studentQuery.isError
+    ? getErrorMessage(studentQuery.error)
+    : null;
+  const studentErrorDescription =
+    studentErrorMessage === "请求的资源不存在"
+      ? "当前学生不存在，或当前演示账号没有权限访问这份学生档案。你可以先返回班级页，从该班学生列表进入。"
+      : studentErrorMessage ||
+        "当前学生不存在，或者当前演示账号没有权限访问这份学生档案。你可以先返回班级页，从该班学生列表进入。";
+  const proficiencyPercent = statistics?.averageProficiency
+    ? Math.round(statistics.averageProficiency * 33.33)
+    : 0;
 
   return (
-    <RequireAuth>
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-indigo-50/30">
-      {/* Background Pattern */}
-      <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
+    <DashboardShell
+      activeNav="students"
+      title={studentData?.name || "学生档案"}
+      subtitle={
+        studentData?.class?.name
+          ? `${studentData.class.name} · 查看作业、考试、错题和知识点变化。`
+          : "查看学生的学习趋势、知识掌握和阶段记录。"
+      }
+      selectedClassIdOverride={classIdNumber}
+      onSelectedClassChange={(nextClassId) => {
+        void navigate({
+          to: "/classes/$classId",
+          params: { classId: nextClassId.toString() },
+        });
+      }}
+      showDateRangeBadge={false}
+      actions={(ctx) => (
+        <>
+          <ModuleButton
+            icon={BookOpen}
+            onClick={() =>
+              void navigate({
+                to: "/classes/$classId",
+                params: { classId },
+              })
+            }
+          >
+            返回班级
+          </ModuleButton>
+          <ModuleButton icon={Upload} onClick={ctx.openUploadForSelectedClass}>
+            上传作业
+          </ModuleButton>
+          <ModuleButton icon={Brain} onClick={ctx.openQuestionGenerator}>
+            题目生成
+          </ModuleButton>
+        </>
+      )}
+    >
+      {() => {
+        if (studentQuery.isLoading && !studentData && !studentQuery.isError) {
+          return (
+            <div className="space-y-6">
+              {[0, 1, 2].map((index) => (
+                <div
+                  key={index}
+                  className="h-32 animate-pulse rounded-lg border border-slate-200 bg-white"
+                />
+              ))}
+            </div>
+          );
+        }
 
-      <StudentDetailHeader
-        studentName={studentData?.name || ""}
-        classId={classId}
-        teacherName={teacher.name}
-        statistics={statistics}
-      />
+        if (studentQuery.isError) {
+          return (
+            <EmptyState
+              icon={User}
+              title="无法查看该学生资料"
+              description={studentErrorDescription}
+            />
+          );
+        }
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {studentQuery.isLoading ? (
-          <div className="space-y-6">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="animate-pulse">
-                <div className="card p-6">
-                  <div className="h-4 bg-gray-200 rounded w-1/4 mb-4"></div>
-                  <div className="space-y-3">
-                    <div className="h-3 bg-gray-200 rounded"></div>
-                    <div className="h-3 bg-gray-200 rounded w-5/6"></div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : studentData ? (
+        if (!studentData) {
+          return (
+            <EmptyState
+              icon={User}
+              title="未找到学生"
+              description="当前学生不存在，或者你没有访问该学生资料的权限。"
+            />
+          );
+        }
+
+        return (
           <>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Main Content */}
-              <div className="lg:col-span-2 space-y-8">
-                {/* Performance Charts */}
+            <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                title="作业数量"
+                value={`${statistics?.totalAssignments || 0}`}
+                caption="累计提交"
+                trend="持续更新"
+                tone="up"
+                icon={FileText}
+                iconClassName="bg-blue-500"
+              />
+              <MetricCard
+                title="考试数量"
+                value={`${statistics?.totalExams || 0}`}
+                caption="阶段记录"
+                trend="可追踪"
+                tone="up"
+                icon={Award}
+                iconClassName="bg-violet-500"
+              />
+              <MetricCard
+                title="错题总数"
+                value={`${statistics?.totalMistakes || 0}`}
+                caption="需要继续跟进"
+                trend={
+                  (statistics?.totalMistakes || 0) > 0 ? "建议复盘" : "状态稳定"
+                }
+                tone={(statistics?.totalMistakes || 0) > 0 ? "down" : "up"}
+                icon={Target}
+                iconClassName="bg-orange-500"
+              />
+              <MetricCard
+                title="平均熟练度"
+                value={`${proficiencyPercent}%`}
+                caption="知识点整体水平"
+                trend={proficiencyPercent >= 70 ? "保持巩固" : "继续提升"}
+                tone={proficiencyPercent >= 70 ? "up" : "neutral"}
+                icon={TrendingUp}
+                iconClassName="bg-emerald-500"
+              />
+            </section>
+
+            <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <div className="xl:col-span-8">
                 <StudentPerformanceChart
                   timeRange={timeRange}
                   onTimeRangeChange={setTimeRange}
                   data={performanceTrendsQuery.data}
                 />
-
-                {/* Recent Assignments */}
-                <div className="card animate-slide-up" style={{ animationDelay: '0.5s' }}>
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <FileText className="w-6 h-6 text-blue-600 mr-3" />
-                      <h3 className="text-lg font-bold text-gray-900">最近作业</h3>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    {studentData.assignments.length > 0 ? (
-                      <div className="space-y-4">
-                        {studentData.assignments.slice(0, 5).map((assignment) => (
-                          <div key={assignment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-blue-50 transition-colors">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                                <FileText className="w-5 h-5 text-blue-600" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-gray-900">{assignment.title}</h4>
-                                <p className="text-sm text-gray-500">
-                                  {new Date(assignment.createdAt).toLocaleDateString('zh-CN')}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {assignment.analysis ? (
-                                <div className="flex items-center space-x-2">
-                                  <CheckCircle className="w-5 h-5 text-green-500" />
-                                  <span className="text-sm text-green-600">已分析</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <Clock className="w-5 h-5 text-orange-500" />
-                                  <span className="text-sm text-orange-600">待分析</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">暂无作业记录</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Recent Exams */}
-                <div className="card animate-slide-up" style={{ animationDelay: '0.6s' }}>
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <Award className="w-6 h-6 text-purple-600 mr-3" />
-                      <h3 className="text-lg font-bold text-gray-900">最近考试</h3>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    {studentData.exams.length > 0 ? (
-                      <div className="space-y-4">
-                        {studentData.exams.slice(0, 5).map((exam) => (
-                          <div key={exam.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-purple-50 transition-colors">
-                            <div className="flex items-center space-x-4">
-                              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                <Award className="w-5 h-5 text-purple-600" />
-                              </div>
-                              <div>
-                                <h4 className="font-semibold text-gray-900">{exam.title}</h4>
-                                <p className="text-sm text-gray-500">
-                                  {new Date(exam.createdAt).toLocaleDateString('zh-CN')}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              {exam.analysis ? (
-                                <div className="flex items-center space-x-2">
-                                  <CheckCircle className="w-5 h-5 text-green-500" />
-                                  <span className="text-sm text-green-600">已分析</span>
-                                </div>
-                              ) : (
-                                <div className="flex items-center space-x-2">
-                                  <Clock className="w-5 h-5 text-orange-500" />
-                                  <span className="text-sm text-orange-600">待分析</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Award className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">暂无考试记录</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
 
-              {/* Sidebar */}
-              <div className="space-y-6">
-                {/* Student Info */}
-                <div className="card animate-slide-up" style={{ animationDelay: '0.7s' }}>
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <User className="w-6 h-6 text-blue-600 mr-3" />
-                      <h3 className="text-lg font-bold text-gray-900">学生信息</h3>
-                    </div>
+              <div className="space-y-6 xl:col-span-4">
+                <Panel title="学生信息" subtitle="基础资料与当前归属班级">
+                  <div className="space-y-4 text-sm">
+                    <DetailRow label="姓名" value={studentData.name} />
+                    <DetailRow
+                      label="学号"
+                      value={studentData.studentId || "暂无学号"}
+                    />
+                    <DetailRow
+                      label="班级"
+                      value={studentData.class?.name || "-"}
+                    />
+                    <DetailRow
+                      label="邮箱"
+                      value={studentData.email || "暂无邮箱"}
+                    />
+                    <DetailRow
+                      label="加入时间"
+                      value={new Date(studentData.createdAt).toLocaleDateString(
+                        "zh-CN",
+                      )}
+                    />
                   </div>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">姓名</span>
-                      <span className="text-sm font-medium text-gray-900">{studentData.name}</span>
-                    </div>
-                    {studentData.studentId && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">学号</span>
-                        <span className="text-sm font-medium text-gray-900">{studentData.studentId}</span>
-                      </div>
-                    )}
-                    {studentData.email && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">邮箱</span>
-                        <span className="text-sm font-medium text-gray-900">{studentData.email}</span>
-                      </div>
-                    )}
-                    {studentData.grade && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">年级</span>
-                        <span className="text-sm font-medium text-gray-900">{studentData.grade}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">班级</span>
-                      <span className="text-sm font-medium text-gray-900">{studentData.class?.name}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-600">加入时间</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {new Date(studentData.createdAt).toLocaleDateString('zh-CN')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                </Panel>
 
-                {/* Mistake Analysis */}
-                <div className="card animate-slide-up" style={{ animationDelay: '0.8s' }}>
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <Target className="w-6 h-6 text-orange-600 mr-3" />
-                      <h3 className="text-lg font-bold text-gray-900">错题分析</h3>
-                    </div>
-                  </div>
-                  <div className="p-6">
-                    {statistics?.mistakesByKnowledgeArea && statistics.mistakesByKnowledgeArea.length > 0 ? (
-                      <div className="space-y-4">
-                        {statistics.mistakesByKnowledgeArea.slice(0, 5).map((area) => (
-                          <div key={area.name} className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                                <Brain className="w-4 h-4 text-orange-600" />
+                <Panel title="错题高频" subtitle="近期最需要优先复盘的知识点">
+                  {statistics?.mistakesByKnowledgeArea &&
+                  statistics.mistakesByKnowledgeArea.length > 0 ? (
+                    <div className="space-y-3">
+                      {statistics.mistakesByKnowledgeArea
+                        .slice(0, 5)
+                        .map((area) => (
+                          <div
+                            key={area.name}
+                            className="rounded-lg bg-slate-50 px-4 py-4 ring-1 ring-slate-100"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex items-center gap-3">
+                                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-50 text-orange-600">
+                                  <Brain className="h-4 w-4" />
+                                </span>
+                                <span className="text-sm font-semibold text-slate-900">
+                                  {area.name}
+                                </span>
                               </div>
-                              <span className="text-sm font-medium text-gray-900">{area.name}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <div className="text-sm font-bold text-orange-600">{area.count}</div>
-                              <div className="text-xs text-gray-500">次</div>
+                              <span className="text-sm font-bold text-orange-600">
+                                {area.count} 次
+                              </span>
                             </div>
                           </div>
                         ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Target className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">暂无错题记录</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Knowledge Areas */}
-                <div className="card animate-slide-up" style={{ animationDelay: '0.9s' }}>
-                  <div className="p-6 border-b border-gray-200">
-                    <div className="flex items-center">
-                      <Brain className="w-6 h-6 text-green-600 mr-3" />
-                      <h3 className="text-lg font-bold text-gray-900">知识掌握</h3>
                     </div>
-                  </div>
-                  <div className="p-6">
-                    {studentData.studentKnowledgeAreas.length > 0 ? (
-                      <div className="space-y-4">
-                        {studentData.studentKnowledgeAreas.map((ska) => (
-                          <div key={ska.id} className="flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-900">{ska.knowledgeArea.name}</span>
-                            <div className="flex items-center space-x-2">
-                              <div className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                ska.proficiencyLevel === 'advanced' ? 'bg-green-100 text-green-800' :
-                                ska.proficiencyLevel === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-                                'bg-red-100 text-red-800'
-                              }`}>
-                                {ska.proficiencyLevel === 'advanced' ? '熟练' :
-                                 ska.proficiencyLevel === 'intermediate' ? '中等' : '初级'}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center">
+                      <Target className="mx-auto h-8 w-8 text-slate-300" />
+                      <p className="mt-3 text-sm font-medium text-slate-500">
+                        暂无错题记录
+                      </p>
+                    </div>
+                  )}
+                </Panel>
+              </div>
+            </section>
+
+            <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
+              <Panel
+                title="最近作业"
+                subtitle="展示最近 5 份作业的处理状态"
+                className="xl:col-span-6"
+              >
+                {studentData.assignments.length > 0 ? (
+                  <RecordList
+                    items={studentData.assignments
+                      .slice(0, 5)
+                      .map((assignment) => ({
+                        id: assignment.id,
+                        title: assignment.title,
+                        date: new Date(assignment.createdAt).toLocaleDateString(
+                          "zh-CN",
+                        ),
+                        complete: Boolean(assignment.analysis),
+                        type: "作业",
+                      }))}
+                  />
+                ) : (
+                  <ListEmpty icon={FileText} label="暂无作业记录" />
+                )}
+              </Panel>
+
+              <Panel
+                title="最近试卷"
+                subtitle="展示最近 5 份试卷的处理状态"
+                className="xl:col-span-6"
+              >
+                {studentData.exams.length > 0 ? (
+                  <RecordList
+                    items={studentData.exams.slice(0, 5).map((exam) => ({
+                      id: exam.id,
+                      title: exam.title,
+                      date: new Date(exam.createdAt).toLocaleDateString(
+                        "zh-CN",
+                      ),
+                      complete: Boolean(exam.analysis),
+                      type: "试卷",
+                    }))}
+                  />
+                ) : (
+                  <ListEmpty icon={Award} label="暂无试卷记录" />
+                )}
+              </Panel>
+            </section>
+
+            <Panel title="知识掌握清单" subtitle="当前学生的知识点掌握等级">
+              {studentData.studentKnowledgeAreas.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  {studentData.studentKnowledgeAreas.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-lg bg-slate-50 px-4 py-4 ring-1 ring-slate-100"
+                    >
+                      <div className="text-sm font-semibold text-slate-900">
+                        {item.knowledgeArea.name}
                       </div>
-                    ) : (
-                      <div className="text-center py-8">
-                        <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                        <p className="text-gray-500">暂无知识点记录</p>
+                      <div className="mt-3">
+                        <span
+                          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            item.proficiencyLevel === "advanced"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : item.proficiencyLevel === "intermediate"
+                                ? "bg-amber-50 text-amber-700"
+                                : "bg-rose-50 text-rose-700"
+                          }`}
+                        >
+                          {formatProficiencyLabel(item.proficiencyLevel)}
+                        </span>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  ))}
                 </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center">
+                  <Brain className="mx-auto h-8 w-8 text-slate-300" />
+                  <p className="mt-3 text-sm font-medium text-slate-500">
+                    暂无知识点掌握记录
+                  </p>
+                </div>
+              )}
+            </Panel>
+          </>
+        );
+      }}
+    </DashboardShell>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <span className="text-slate-500">{label}</span>
+      <span className="max-w-[70%] text-right font-medium text-slate-900">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function RecordList({
+  items,
+}: {
+  items: Array<{
+    id: number;
+    title: string;
+    date: string;
+    complete: boolean;
+    type: string;
+  }>;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className="rounded-lg bg-slate-50 px-4 py-4 ring-1 ring-slate-100"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold text-slate-900">
+                {item.title}
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {item.type} · {item.date}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="text-center py-12">
-            <User className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-bold text-gray-900 mb-2">学生不存在</h3>
-            <p className="text-gray-500 mb-8">找不到该学生的信息</p>
-            <button
-              onClick={() => navigate({ to: "/classes/$classId", params: { classId } })}
-              className="btn-primary"
+            <div
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                item.complete
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-amber-50 text-amber-700"
+              }`}
             >
-              返回班级页面
-            </button>
+              {item.complete ? (
+                <CheckCircle className="h-3.5 w-3.5" />
+              ) : (
+                <Clock className="h-3.5 w-3.5" />
+              )}
+              {item.complete ? "已分析" : "待分析"}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      ))}
     </div>
-    </RequireAuth>
   );
+}
+
+function ListEmpty({
+  icon: Icon,
+  label,
+}: {
+  icon: typeof FileText;
+  label: string;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 text-center">
+      <Icon className="mx-auto h-8 w-8 text-slate-300" />
+      <p className="mt-3 text-sm font-medium text-slate-500">{label}</p>
+    </div>
+  );
+}
+
+function formatProficiencyLabel(level: string | null | undefined) {
+  if (level === "advanced") return "熟练";
+  if (level === "intermediate") return "中等";
+  return "初级";
 }

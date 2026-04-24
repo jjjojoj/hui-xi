@@ -4,10 +4,12 @@ import { db } from "~/server/db";
 import { authedProcedure } from "~/server/trpc/main";
 
 export const assignStudentToGroup = authedProcedure
-  .input(z.object({
-    studentId: z.number(),
-    groupId: z.number(),
-  }))
+  .input(
+    z.object({
+      studentId: z.number(),
+      groupId: z.number().nullable(),
+    }),
+  )
   .mutation(async ({ input, ctx }) => {
     try {
       // Verify teacher authentication - get teacher's classes
@@ -16,7 +18,7 @@ export const assignStudentToGroup = authedProcedure
         select: { id: true },
       });
 
-      const teacherClassIds = teacherClasses.map(c => c.id);
+      const teacherClassIds = teacherClasses.map((c) => c.id);
 
       // Get the student and verify they're in the teacher's class
       const student = await db.student.findFirst({
@@ -33,25 +35,36 @@ export const assignStudentToGroup = authedProcedure
         });
       }
 
-      // Get the group and verify it's in the same class
-      const group = await db.studentGroup.findFirst({
-        where: {
-          id: input.groupId,
-          classId: student.classId,
-        },
-      });
-
-      if (!group) {
+      if (student.classId === null) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Group not found or not in the same class as the student",
+          code: "BAD_REQUEST",
+          message: "Student is not currently assigned to a class",
         });
+      }
+
+      const { groupId } = input;
+
+      if (groupId !== null) {
+        const nextGroupId: number = groupId;
+        const group = await db.studentGroup.findFirst({
+          where: {
+            id: nextGroupId,
+            classId: student.classId,
+          },
+        });
+
+        if (!group) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Group not found or not in the same class as the student",
+          });
+        }
       }
 
       // Assign student to group
       const updated = await db.student.update({
         where: { id: input.studentId },
-        data: { groupId: input.groupId },
+        data: { groupId },
         include: {
           group: true,
           class: true,
@@ -60,6 +73,7 @@ export const assignStudentToGroup = authedProcedure
 
       return {
         success: true,
+        action: groupId === null ? "removed" : "assigned",
         student: {
           id: updated.id,
           name: updated.name,
@@ -72,7 +86,7 @@ export const assignStudentToGroup = authedProcedure
         throw error;
       }
 
-      console.error('Assign student to group error:', error);
+      console.error("Assign student to group error:", error);
       throw new TRPCError({
         code: "INTERNAL_SERVER_ERROR",
         message: "Failed to assign student to group",

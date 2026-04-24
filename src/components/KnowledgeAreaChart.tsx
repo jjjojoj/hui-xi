@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+import React from "react";
 import {
-  RadarChart,
-  PolarGrid,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
   PolarAngleAxis,
+  PolarGrid,
   PolarRadiusAxis,
   Radar,
+  RadarChart,
   ResponsiveContainer,
-  LineChart,
-  Line,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-} from 'recharts';
-import { Brain, TrendingUp, BarChart3 } from 'lucide-react';
+} from "recharts";
+import { BarChart3, Brain, TrendingUp } from "lucide-react";
 
 interface ProficiencyDataPoint {
   date: string;
@@ -27,103 +27,198 @@ interface KnowledgeAreaChartProps {
   data: ProficiencyDataPoint[];
   className?: string;
   height?: number;
-  viewType?: 'radar' | 'trend';
+  viewType?: "radar" | "trend";
 }
 
 export const KnowledgeAreaChart: React.FC<KnowledgeAreaChartProps> = ({
   data,
   className = "",
-  height = 350,
-  viewType: initialViewType = 'radar',
+  height = 320,
+  viewType: initialViewType = "radar",
 }) => {
-  const [viewType, setViewType] = useState<'radar' | 'trend'>(initialViewType);
+  const [viewType, setViewType] = React.useState<"radar" | "trend">(
+    initialViewType,
+  );
 
-  // Process data for radar chart (latest proficiency levels)
   const radarData = React.useMemo(() => {
-    const latestProficiency = new Map<string, number>();
-    
-    // Get the latest proficiency level for each knowledge area
-    data.forEach(point => {
-      const existing = latestProficiency.get(point.knowledgeArea);
-      if (!existing || new Date(point.date) > new Date(existing.toString())) {
-        latestProficiency.set(point.knowledgeArea, point.proficiency);
+    const latestByArea = new Map<
+      string,
+      { date: string; proficiency: number }
+    >();
+
+    data.forEach((point) => {
+      const existing = latestByArea.get(point.knowledgeArea);
+      if (!existing || new Date(point.date) > new Date(existing.date)) {
+        latestByArea.set(point.knowledgeArea, {
+          date: point.date,
+          proficiency: point.proficiency,
+        });
       }
     });
-    
-    return Array.from(latestProficiency.entries()).map(([area, proficiency]) => ({
+
+    return Array.from(latestByArea.entries()).map(([area, latest]) => ({
       knowledgeArea: area,
-      proficiency: proficiency * 33.33, // Convert to percentage
+      proficiency: latest.proficiency * 33.33,
       fullMark: 100,
     }));
   }, [data]);
 
-  // Process data for trend lines
   const trendData = React.useMemo(() => {
     const dateMap = new Map<string, Record<string, string | number>>();
-    
-    data.forEach(point => {
+
+    data.forEach((point) => {
       if (!dateMap.has(point.date)) {
-        dateMap.set(point.date, { date: point.date } as Record<string, string | number>);
+        dateMap.set(point.date, { date: point.date });
       }
-      const dateData = dateMap.get(point.date)!;
+      const dateData = dateMap.get(point.date);
+      if (!dateData) return;
       dateData[point.knowledgeArea] = point.proficiency * 33.33;
     });
-    
-    return Array.from(dateMap.values()).sort((a, b) => 
-      new Date(a.date as string).getTime() - new Date(b.date as string).getTime()
+
+    return Array.from(dateMap.values()).sort(
+      (a, b) =>
+        new Date(String(a.date)).getTime() - new Date(String(b.date)).getTime(),
     );
   }, [data]);
 
-  // Get unique knowledge areas for coloring
-  const knowledgeAreas = React.useMemo(() => {
-    return Array.from(new Set(data.map(d => d.knowledgeArea)));
-  }, [data]);
+  const knowledgeAreas = React.useMemo(
+    () => Array.from(new Set(data.map((item) => item.knowledgeArea))),
+    [data],
+  );
 
-  const colors = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#84cc16', '#f97316'];
+  const colors = [
+    "#3b82f6",
+    "#8b5cf6",
+    "#10b981",
+    "#f59e0b",
+    "#ef4444",
+    "#06b6d4",
+    "#84cc16",
+    "#f97316",
+  ];
 
-  const RadarTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
-          <p className="text-sm font-semibold text-gray-900">{data.knowledgeArea}</p>
-          <p className="text-sm text-blue-600">
-            熟练度: {data.proficiency.toFixed(1)}%
-          </p>
+  const RadarTooltip = ({
+    active,
+    payload,
+  }: {
+    active?: boolean;
+    payload?: Array<{
+      payload?: { knowledgeArea: string; proficiency: number };
+    }>;
+  }) => {
+    if (!active || !payload?.length || !payload[0]?.payload) return null;
+    const point = payload[0].payload;
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+        <div className="text-sm font-semibold text-slate-900">
+          {point.knowledgeArea}
         </div>
-      );
-    }
-    return null;
+        <div className="mt-1 text-sm text-blue-600">
+          熟练度 {point.proficiency.toFixed(1)}%
+        </div>
+      </div>
+    );
   };
 
-  const TrendTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs">
-          <p className="text-sm font-semibold text-gray-900 mb-2">
-            {new Date(label).toLocaleDateString('zh-CN')}
-          </p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.dataKey}: {entry.value?.toFixed(1)}%
-            </p>
+  const TrendTooltip = ({
+    active,
+    payload,
+    label,
+  }: {
+    active?: boolean;
+    payload?: Array<{ color?: string; dataKey?: string; value?: number }>;
+    label?: string;
+  }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="max-w-xs rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+        <div className="mb-2 text-xs font-bold text-slate-500">
+          {label ? new Date(label).toLocaleDateString("zh-CN") : "暂无日期"}
+        </div>
+        <div className="space-y-1.5">
+          {payload.map((entry) => (
+            <div
+              key={entry.dataKey}
+              className="flex items-center justify-between gap-4 text-sm"
+            >
+              <span className="font-medium text-slate-600">
+                {entry.dataKey}
+              </span>
+              <span className="font-bold" style={{ color: entry.color }}>
+                {entry.value?.toFixed(1)}%
+              </span>
+            </div>
           ))}
         </div>
-      );
-    }
-    return null;
+      </div>
+    );
   };
 
-  const renderChart = () => {
-    if (viewType === 'radar') {
-      return (
+  if (data.length === 0) {
+    return (
+      <section
+        className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+      >
+        <div className="text-base font-bold text-slate-950">知识掌握结构</div>
+        <div className="flex min-h-72 flex-col items-center justify-center text-center">
+          <Brain className="h-10 w-10 text-slate-300" />
+          <p className="mt-3 text-sm font-medium text-slate-500">
+            暂无知识点掌握数据
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}
+    >
+      <div className="mb-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-emerald-600" />
+            <h3 className="text-base font-bold text-slate-950">知识掌握结构</h3>
+          </div>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            观察学生在不同知识点上的掌握强弱和变化轨迹。
+          </p>
+        </div>
+
+        <div className="flex rounded-lg bg-slate-100 p-1">
+          <button
+            onClick={() => setViewType("radar")}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
+              viewType === "radar"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <BarChart3 className="h-4 w-4" />
+            雷达图
+          </button>
+          <button
+            onClick={() => setViewType("trend")}
+            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold transition ${
+              viewType === "trend"
+                ? "bg-white text-blue-600 shadow-sm"
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <TrendingUp className="h-4 w-4" />
+            趋势图
+          </button>
+        </div>
+      </div>
+
+      {viewType === "radar" ? (
         <ResponsiveContainer width="100%" height={height}>
           <RadarChart data={radarData}>
             <PolarGrid />
             <PolarAngleAxis dataKey="knowledgeArea" tick={{ fontSize: 12 }} />
-            <PolarRadiusAxis 
-              angle={0} 
-              domain={[0, 100]} 
+            <PolarRadiusAxis
+              angle={0}
+              domain={[0, 100]}
               tick={{ fontSize: 10 }}
               tickFormatter={(value) => `${value}%`}
             />
@@ -132,27 +227,37 @@ export const KnowledgeAreaChart: React.FC<KnowledgeAreaChartProps> = ({
               dataKey="proficiency"
               stroke="#3b82f6"
               fill="#3b82f6"
-              fillOpacity={0.3}
+              fillOpacity={0.25}
               strokeWidth={2}
             />
             <Tooltip content={<RadarTooltip />} />
           </RadarChart>
         </ResponsiveContainer>
-      );
-    } else {
-      return (
+      ) : (
         <ResponsiveContainer width="100%" height={height}>
           <LineChart data={trendData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis 
-              dataKey="date"
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => new Date(value).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })}
+            <CartesianGrid
+              stroke="#e2e8f0"
+              strokeDasharray="3 3"
+              vertical={false}
             />
-            <YAxis 
+            <XAxis
+              dataKey="date"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
+              tickFormatter={(value) =>
+                new Date(String(value)).toLocaleDateString("zh-CN", {
+                  month: "2-digit",
+                  day: "2-digit",
+                })
+              }
+            />
+            <YAxis
               domain={[0, 100]}
-              tick={{ fontSize: 12 }}
-              label={{ value: '熟练度 (%)', angle: -90, position: 'insideLeft' }}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: "#64748b", fontSize: 12 }}
             />
             <Tooltip content={<TrendTooltip />} />
             <Legend />
@@ -163,97 +268,45 @@ export const KnowledgeAreaChart: React.FC<KnowledgeAreaChartProps> = ({
                 dataKey={area}
                 stroke={colors[index % colors.length]}
                 strokeWidth={2}
-                dot={{ fill: colors[index % colors.length], strokeWidth: 2, r: 4 }}
+                dot={{
+                  r: 3,
+                  fill: colors[index % colors.length],
+                  strokeWidth: 0,
+                }}
                 connectNulls={false}
               />
             ))}
           </LineChart>
         </ResponsiveContainer>
-      );
-    }
-  };
+      )}
 
-  if (data.length === 0) {
-    return (
-      <div className={`card ${className}`}>
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">知识领域掌握度</h3>
-          <div className="text-center py-8">
-            <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500">暂无知识领域数据</p>
-          </div>
-        </div>
+      <div className="mt-6 grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-3">
+        <MiniStat label="知识点数" value={`${knowledgeAreas.length}`} />
+        <MiniStat
+          label="平均熟练度"
+          value={`${
+            radarData.length > 0
+              ? Math.round(
+                  radarData.reduce((sum, item) => sum + item.proficiency, 0) /
+                    radarData.length,
+                )
+              : 0
+          }%`}
+        />
+        <MiniStat
+          label="优势知识点"
+          value={`${radarData.filter((item) => item.proficiency >= 80).length}`}
+        />
       </div>
-    );
-  }
-
-  return (
-    <div className={`card ${className}`}>
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <Brain className="w-6 h-6 text-blue-600 mr-3" />
-            <h3 className="text-lg font-bold text-gray-900">知识领域掌握度</h3>
-          </div>
-          
-          {/* View Type Toggle */}
-          <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
-            <button
-              onClick={() => setViewType('radar')}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                viewType === 'radar'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>雷达图</span>
-            </button>
-            <button
-              onClick={() => setViewType('trend')}
-              className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                viewType === 'trend'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <TrendingUp className="w-4 h-4" />
-              <span>趋势图</span>
-            </button>
-          </div>
-        </div>
-        
-        {/* Chart Content */}
-        <div>
-          {renderChart()}
-        </div>
-        
-        {/* Summary Stats */}
-        <div className="grid grid-cols-3 gap-4 mt-6 pt-6 border-t border-gray-200">
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">
-              {knowledgeAreas.length}
-            </div>
-            <div className="text-sm text-gray-600">知识领域</div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">
-              {radarData.length > 0 
-                ? Math.round(radarData.reduce((sum, d) => sum + d.proficiency, 0) / radarData.length)
-                : 0}%
-            </div>
-            <div className="text-sm text-gray-600">平均熟练度</div>
-          </div>
-          
-          <div className="text-center">
-            <div className="text-2xl font-bold text-purple-600">
-              {radarData.filter(d => d.proficiency >= 80).length}
-            </div>
-            <div className="text-sm text-gray-600">优秀领域</div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </section>
   );
 };
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-slate-50 px-4 py-4 ring-1 ring-slate-100">
+      <div className="text-xs font-medium text-slate-500">{label}</div>
+      <div className="mt-2 text-xl font-bold text-slate-950">{value}</div>
+    </div>
+  );
+}

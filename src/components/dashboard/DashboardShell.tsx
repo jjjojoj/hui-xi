@@ -18,6 +18,7 @@ import {
   YAxis,
 } from "recharts";
 import {
+  AlertTriangle,
   Award,
   BarChart3,
   Bell,
@@ -78,11 +79,6 @@ const ClassDataAnalysis = lazy(() =>
     default: m.ClassDataAnalysis,
   })),
 );
-const MistakeLibrary = lazy(() =>
-  import("~/components/MistakeLibrary").then((m) => ({
-    default: m.MistakeLibrary,
-  })),
-);
 const ReviewSchedule = lazy(() =>
   import("~/components/ReviewSchedule").then((m) => ({
     default: m.ReviewSchedule,
@@ -98,6 +94,7 @@ export type DashboardNavKey =
   | "assignments"
   | "exams"
   | "knowledge-map"
+  | "mistakes"
   | "students"
   | "classes"
   | "reports"
@@ -148,6 +145,7 @@ export type DashboardPageContext = {
   hasPerformanceData: boolean;
   isPerformanceLoading: boolean;
   openSelectedClass: () => void;
+  openUploadForSelectedClass: () => void;
   openSelectedStudent: (studentId: number) => void;
   openCreateClass: () => void;
   openTeachingMaterials: () => void;
@@ -163,6 +161,9 @@ type DashboardShellProps = {
   subtitle?: string | ((ctx: DashboardPageContext) => string);
   actions?: (ctx: DashboardPageContext) => ReactNode;
   children: (ctx: DashboardPageContext) => ReactNode;
+  selectedClassIdOverride?: number | null;
+  onSelectedClassChange?: (classId: number) => void;
+  showDateRangeBadge?: boolean;
 };
 
 const navItems: Array<{
@@ -208,6 +209,12 @@ const navItems: Array<{
     href: "/dashboard/knowledge-map",
   },
   {
+    key: "mistakes",
+    label: "错题库",
+    icon: AlertTriangle,
+    href: "/dashboard/mistakes",
+  },
+  {
     key: "students",
     label: "学生管理",
     icon: Users,
@@ -251,6 +258,9 @@ export function DashboardShell({
   subtitle,
   actions,
   children,
+  selectedClassIdOverride,
+  onSelectedClassChange,
+  showDateRangeBadge = true,
 }: DashboardShellProps) {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -264,7 +274,6 @@ export function DashboardShell({
   const [showTeachingMaterials, setShowTeachingMaterials] = useState(false);
   const [showQuestionGenerator, setShowQuestionGenerator] = useState(false);
   const [showDataAnalysis, setShowDataAnalysis] = useState(false);
-  const [showMistakeLibrary, setShowMistakeLibrary] = useState(false);
   const [showReviewSchedule, setShowReviewSchedule] = useState(false);
 
   useEffect(() => {
@@ -279,16 +288,32 @@ export function DashboardShell({
   });
 
   const classes = classesQuery.data?.classes || [];
+  const resolvedSelectedClassId = selectedClassIdOverride ?? selectedClassId;
   const selectedClass =
-    classes.find((cls) => cls.id === selectedClassId) || classes[0] || null;
+    classes.find((cls) => cls.id === resolvedSelectedClassId) ||
+    classes.find((cls) => cls.id === selectedClassId) ||
+    classes[0] ||
+    null;
   const selectedClassIdForQuery = selectedClass?.id || 0;
 
   useEffect(() => {
     const firstClass = classes[0];
+    if (selectedClassIdOverride != null) {
+      return;
+    }
     if (!selectedClassId && firstClass) {
       setSelectedClassId(firstClass.id);
     }
-  }, [classes, selectedClassId]);
+  }, [classes, selectedClassId, selectedClassIdOverride]);
+
+  useEffect(() => {
+    if (
+      selectedClassIdOverride != null &&
+      selectedClassIdOverride !== selectedClassId
+    ) {
+      setSelectedClassId(selectedClassIdOverride);
+    }
+  }, [selectedClassId, selectedClassIdOverride]);
 
   const performanceQuery = useQuery({
     ...trpc.getClassPerformanceTrends.queryOptions({
@@ -409,6 +434,18 @@ export function DashboardShell({
     });
   };
 
+  const openUploadForSelectedClass = () => {
+    if (!selectedClass) {
+      toast.info("请先创建一个班级");
+      return;
+    }
+    void navigate({
+      to: "/classes/$classId",
+      params: { classId: selectedClass.id.toString() },
+      search: { open: "upload" },
+    });
+  };
+
   const openSelectedStudent = (studentId: number) => {
     if (!selectedClass) return;
     void navigate({
@@ -460,17 +497,28 @@ export function DashboardShell({
     hasPerformanceData,
     isPerformanceLoading: performanceQuery.isLoading,
     openSelectedClass,
+    openUploadForSelectedClass,
     openSelectedStudent,
     openCreateClass: () => setIsCreateClassModalOpen(true),
     openTeachingMaterials: () => setShowTeachingMaterials(true),
     openQuestionGenerator: () => setShowQuestionGenerator(true),
     openDataAnalysis: () => setShowDataAnalysis(true),
-    openMistakeLibrary: () => setShowMistakeLibrary(true),
+    openMistakeLibrary: () => {
+      void navigate({
+        to: "/dashboard/mistakes",
+        search: selectedClass ? { classId: selectedClass.id } : {},
+      });
+    },
     openReviewSchedule: () => setShowReviewSchedule(true),
   };
 
   const resolvedSubtitle =
     typeof subtitle === "function" ? subtitle(ctx) : subtitle;
+
+  const handleHeaderClassChange = (classId: number) => {
+    setSelectedClassId(classId);
+    onSelectedClassChange?.(classId);
+  };
 
   return (
     <RequireAuth>
@@ -570,7 +618,7 @@ export function DashboardShell({
                     value={selectedClass?.id || ""}
                     disabled={classes.length === 0}
                     onChange={(event) =>
-                      setSelectedClassId(Number(event.target.value))
+                      handleHeaderClassChange(Number(event.target.value))
                     }
                     className="h-11 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-10 pr-9 text-sm font-semibold text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100 disabled:text-slate-400"
                   >
@@ -584,10 +632,12 @@ export function DashboardShell({
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </label>
 
-                <div className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                  <span>{dateRangeText(timeRange)}</span>
-                </div>
+                {showDateRangeBadge ? (
+                  <div className="flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm">
+                    <Calendar className="h-4 w-4 text-slate-400" />
+                    <span>{dateRangeText(timeRange)}</span>
+                  </div>
+                ) : null}
 
                 <button
                   onClick={() => setIsCreateClassModalOpen(true)}
@@ -665,16 +715,6 @@ export function DashboardShell({
         >
           <Suspense fallback={<LoadingSpinner />}>
             <ClassDataAnalysis onClose={() => setShowDataAnalysis(false)} />
-          </Suspense>
-        </ModalWrapper>
-
-        <ModalWrapper
-          isOpen={showMistakeLibrary}
-          onClose={() => setShowMistakeLibrary(false)}
-          maxWidth="max-w-5xl"
-        >
-          <Suspense fallback={<LoadingSpinner />}>
-            <MistakeLibrary onClose={() => setShowMistakeLibrary(false)} />
           </Suspense>
         </ModalWrapper>
 
